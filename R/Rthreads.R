@@ -1,107 +1,52 @@
 
-require(bigmemory)
-require(synchronicity)
+library(bigmemory)
+library(synchronicity)
 
+myGlobals <- new.env(parent=emptyenv())
+sharedGlobals <- new.env(parent=emptyenv())
+
+# executed only by thread 0; no longer can create shared vars here
 rthreadsSetup <- function(
    nThreads,  # number of threads
-   sharedVars = NULL,  # see above
-   mutexNames = NULL,  # other than 'mutex0'
-   infoDir = '~/'
-) 
+   infoDir = '~/'  # note trailing /
+   ) 
 {
-
    info <- list(
               nThreads = nThreads,
-              infoDir = infoDir,
-              sharedVarNames = names(sharedVars),
-              mutexNames = mutexNames
+              infoDir = infoDir
            )
 
    infoFile = paste0(infoDir,'rthreadsInfo.RData')
    save(info,file=infoFile)
 
    # set up myGlobals
-   tmp <- new.env()
-   assign('myGlobals',tmp,envir = .GlobalEnv)
    myGlobals$myID <- 0
    myGlobals$info <- info
 
-   # set up sharedGlobals
-   tmp <- new.env()
-   assign('sharedGlobals',tmp,envir = .GlobalEnv)
-
-   rthreadsMakeMutex('mutex0',infoDir='~/')
+   rthreadsMakeMutex('mutex0',infoDir=infoDir)
    rthreadsMakeBarrier()
-   rthreadsMakeSharedVar('nJoined',1,1,infoDir='~/',initVal=1)
-   rthreadsMakeSharedVar('nDone',1,1,infoDir='~/',initVal=0)
-
-   # set up the shared variables
-   if (!is.null(sharedVars)) {
-      for (i in 1:length(sharedVars)) {
-         varName <- names(sharedVars)[i]
-         nrowcoletc <- sharedVars[[i]]
-         if (length(nrowcoletc) == 2) {
-            rthreadsMakeSharedVar(varName,nrowcoletc[1],nrowcoletc[2],
-               infoDir='~/')
-         } else {
-            rthreadsMakeSharedVar(varName,nrowcoletc[1],nrowcoletc[2],
-               infoDir='~/', initVal=nrowcoletc[3])
-         }
-         myGlobals$info$sharedVarNames <- 
-            c(myGlobals$info$sharedVarNames,varName)
-      }
-   }
-
-   # set up the application-specific mutexes
-   mutexNames <- myGlobals$info$mutexNames
-   if (!is.null(mutexNames)) {
-      for (i in 1:length(myGlobals$info$mutexNames)) {
-         mtxname <- myGlobals$info$mutexNames[i]
-         tmp <- boost.mutex(mtxname)
-         desc <- describe(tmp)
-         descFile <- paste0(infoDir,mtxname,'.desc')
-         dput(desc,file=descFile)
-         myGlobals$info$mutexNames <- c(myGlobals$info$mutexNames,descFile)
-      }
-   }
+   rthreadsMakeSharedVar('nJoined',1,1,infoDir=infoDir,initVal=1)
+   rthreadsMakeSharedVar('nDone',1,1,infoDir=infoDir,initVal=0)
    
 }
 
-rthreadsJoin <- function(infoDir= '~') 
+rthreadsJoin <- function(infoDir= '~/') 
 {
 
    # check in and get my ID
    info <- NULL  # so CRAN won't object
-   infoFile = paste0(infoDir,'/rthreadsInfo.RData')
+   infoFile = paste0(infoDir,'rthreadsInfo.RData')
    load(infoFile)
-   tmp <- get0('myGlobals',envir = .GlobalEnv)
-   mgrThread <- !is.null(tmp) && myGlobals$myID == 0
+   mgrThread <- !is.null(myGlobals$myID) && myGlobals$myID == 0
    if (!mgrThread) {
-      tmp <- new.env()
-      assign('sharedGlobals',tmp,envir = .GlobalEnv)
-      rthreadsAttachSharedVar('nJoined',infoDir='~/')
-      rthreadsAttachMutex('mutex0',infoDir='~/')
+      rthreadsAttachSharedVar('nJoined',infoDir=infoDir)
+      rthreadsAttachMutex('mutex0',infoDir=infoDir)
       nj <- rthreadsAtomicInc('nJoined') 
-      tmp <- new.env()
-      assign('myGlobals',tmp,envir = .GlobalEnv)
       myGlobals$myID <- nj
       myGlobals$info <- info
-      rthreadsAttachSharedVar('nDone',infoDir='~/')
-      rthreadsAttachSharedVar('barrier0',infoDir='~/')
-      rthreadsAttachMutex('barrMutex0',infoDir='~/')
-      # pick up the shared variables
-      sharedVarNames <- myGlobals$info$sharedVarNames
-      if (!is.null(sharedVarNames)) {
-         for (i in 1:length(sharedVarNames)) {
-            rthreadsAttachSharedVar(sharedVarNames[i],infoDir='~/')
-         }
-      }
-      # pick up the application-specific mutexes
-      mutexNames <- myGlobals$info$mutexNames
-      if (!is.null(mutexNames)) {
-         for (i in 1:length(mutexNames)) 
-            rthreadsAttachMutex(mutexNames[i],infoDir='~/')
-      }
+      rthreadsAttachSharedVar('nDone',infoDir=infoDir)
+      rthreadsAttachSharedVar('barrier0',infoDir=infoDir)
+      rthreadsAttachMutex('barrMutex0',infoDir=infoDir)
    }
 
    # wait for everyone else
@@ -110,13 +55,15 @@ rthreadsJoin <- function(infoDir= '~')
 }
 
 # atomically increases sharedV by increm, returning old value; sharedV
-# is the name of a shared variable (NOT prefixed by 'sharedGlobals$');
+# is the quoted name of a shared variable (NOT prefixed by 'sharedGlobals$');
+# same for mtx
+
 # element [1,] is incremented; so, can have vector incrementing vector
 rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1) 
 {
-   mtx <- get(mtx,envir=sharedGlobals)
+   mtx <- sharedGlobals[[mtx]]
    synchronicity::lock(mtx)
-   shrdv <- get(sharedV,envir=sharedGlobals)
+   shrdv <- sharedGlobals[[sharedV]]
    oldVal <- shrdv[1,]
    newVal <- oldVal + increm
    shrdv[1,1] <- newVal
@@ -180,8 +127,10 @@ rthreadsWaitDone <- function()
 
 rthreadsBarrier <- function() 
 {
-   mtx <- get('barrMutex0',envir=sharedGlobals)
-   barr <- get('barrier0',envir=sharedGlobals)
+   ### mtx <- get('barrMutex0',envir=sharedGlobals)
+   mtx <- sharedGlobals$barrMutex0
+   ### barr <- get('barrier0',envir=sharedGlobals)
+   barr <- sharedGlobals$barrier0
    synchronicity::lock(mtx)
    count <- barr[1,1] - 1
    barr[1,1] <- count
@@ -194,6 +143,30 @@ rthreadsBarrier <- function()
    } else {
       synchronicity::unlock(mtx)
       while (barr[1,2] == sense) {}
+   }
+}
+
+# utils to get around "hidden" namespace
+
+# print all of myGlobals
+rthreadsPrintMG <- function() 
+{
+   for(nm in names(myGlobals)) print(myGlobals[[nm]])
+}
+
+# print all of sharedGlobals
+rthreadsPrintSG <- function() 
+{
+   for(nm in names(sharedGlobals)) cat(nm,' = ',sharedGlobals[[nm]][1,],'\n')
+}
+
+# device to get user access to Rthreads workspace
+rthreadsDoCmds <- function()
+{
+   while(1) {
+      cmd <- readline('enter cmd or blank line to quit: ')
+      if (cmd == '\n') return()
+      evalr(cmd)
    }
 }
 
