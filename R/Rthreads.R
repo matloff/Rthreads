@@ -5,28 +5,23 @@ library(synchronicity)
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
 
-# executed only by thread 0; no longer can create shared vars here
-rthreadsSetup <- function(
-   nThreads,  # number of threads
-   infoDir = '~/'  # note trailing /
-   ) 
-{
-   info <- list(
-              nThreads = nThreads,
-              infoDir = infoDir
-           )
-
-   infoFile = paste0(infoDir,'rthreadsInfo.RData')
-   save(info,file=infoFile)
-
+# executed only by thread 0
+rthreadsSetup <- function(nThreads,sharedVars,nonsharedGlobals) 
+{ 
    # set up myGlobals
    myGlobals$myID <- 0
-   myGlobals$info <- info
+
+   # set up shared globals
+   sharedGlobals$nThreads <- nThreads
+   sharedGlobals$nJoined <- 1
+   sharedGlobals$nDone <- 0
+
+   for (nm in names(sharedVars)) {
+      sharedGlobals[[nm]] <- sharedGlobals[[nm]]
+   }
 
    rthreadsMakeMutex('mutex0',infoDir=infoDir)
    rthreadsMakeBarrier()
-   rthreadsMakeSharedVar('nJoined',1,1,infoDir=infoDir,initVal=1)
-   rthreadsMakeSharedVar('nDone',1,1,infoDir=infoDir,initVal=0)
    
 }
 
@@ -34,9 +29,6 @@ rthreadsJoin <- function(infoDir= '~/')
 {
 
    # check in and get my ID
-   info <- NULL  # so CRAN won't object
-   infoFile = paste0(infoDir,'rthreadsInfo.RData')
-   load(infoFile)
    mgrThread <- !is.null(myGlobals$myID) && myGlobals$myID == 0
    if (!mgrThread) {
       rthreadsAttachSharedVar('nJoined',infoDir=infoDir)
