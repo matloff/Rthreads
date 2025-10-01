@@ -4,45 +4,51 @@ library(synchronicity)
 
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
+topDir <- getwd()
+dir.create('descFiles')
 
 # executed only by thread 0
-rthreadsSetup <- function(nThreads,sharedVars,nonsharedGlobals) 
+# both sharedVars and nonsharedVars are R lists
+rthreadsSetup <- function(nThreads) 
 { 
    # set up myGlobals
    myGlobals$myID <- 0
 
    # set up shared globals
-   sharedGlobals$nThreads <- nThreads
-   sharedGlobals$nJoined <- 1
-   sharedGlobals$nDone <- 0
+#    sharedGlobals$nThreads <- nThreads
+#    sharedGlobals$nJoined <- 1
+#    sharedGlobals$nDone <- 0
+   myGlobals$nThreads <- nThreads
+   rthreadsMakeSharedVar('nJoined',1,1,1)
+   rthreadsMakeSharedVar('nDone',1,1,0)
 
-   for (nm in names(sharedVars)) {
-      sharedGlobals[[nm]] <- sharedGlobals[[nm]]
-   }
+##    for (nm in names(sharedVars)) {
+##       sharedGlobals[[nm]] <- sharedVars[[nm]]
+##    }
 
-   rthreadsMakeMutex('mutex0',infoDir=infoDir)
+   rthreadsMakeMutex('mutex0')
    rthreadsMakeBarrier()
    
 }
 
-rthreadsJoin <- function(infoDir= '~/') 
+# run by all threads, including 0
+rthreadsJoin <- function() 
 {
 
    # check in and get my ID
-   mgrThread <- !is.null(myGlobals$myID) && myGlobals$myID == 0
+   mgrThread <- 'myID' %in% names(myGlobals)
    if (!mgrThread) {
-      rthreadsAttachSharedVar('nJoined',infoDir=infoDir)
-      rthreadsAttachMutex('mutex0',infoDir=infoDir)
+      rthreadsAttachSharedVar('nJoined')
+      rthreadsAttachMutex('mutex0')
       nj <- rthreadsAtomicInc('nJoined') 
       myGlobals$myID <- nj
-      myGlobals$info <- info
-      rthreadsAttachSharedVar('nDone',infoDir=infoDir)
-      rthreadsAttachSharedVar('barrier0',infoDir=infoDir)
-      rthreadsAttachMutex('barrMutex0',infoDir=infoDir)
+      rthreadsAttachSharedVar('nDone')
+      rthreadsAttachSharedVar('barrier0')
+      rthreadsAttachMutex('barrMutex0')
    }
 
    # wait for everyone else
-   while (sharedGlobals$nJoined[1,1] < myGlobals$info$nThreads) {}
+   while (sharedGlobals$nJoined[1,1] < myGlobals$nThreads) {}
 
 }
 
@@ -58,7 +64,8 @@ rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
    shrdv <- sharedGlobals[[sharedV]]
    oldVal <- shrdv[1,]
    newVal <- oldVal + increm
-   shrdv[1,1] <- newVal
+   shrdv[1,] <- newVal
+   sharedGlobals[[sharedV]] <- shrdv
    synchronicity::unlock(mtx)
    return(oldVal)
 }
@@ -66,40 +73,41 @@ rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
 rthreadsMakeBarrier <- function()
 {
    rthreadsMakeMutex('barrMutex0')
-   rthreadsMakeSharedVar('barrier0',1,2,initVal=c(myGlobals$info$nThreads,0))
+   rthreadsMakeSharedVar('barrier0',1,2,initVal=c(sharedGlobals$nThreads,0))
 }
 
 rthreadsInitBarrier <- function() 
 {
-   sharedGlobals$barrier0[1,] <- c(myGlobals$info$nThreads,0)
+   sharedGlobals$barrier0[1,] <- c(sharedGlobals$nThreads,0)
 }
 
-# create a variable shareable across threads
-rthreadsMakeSharedVar <- function(varName,nr,nc,infoDir='~/',initVal=NULL) 
+# create a variable shareable across threads; must be a matrix, even if
+# only 1x1
+rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL) 
 {
    tmp <- big.matrix(nr,nc,type='double')
    if (!is.null(initVal)) {
       tmp[,] <- initVal
-   }
+   } 
    desc <- describe(tmp)
-   descFile <- paste0(infoDir,varName,'.desc')
-   dput(desc,file=descFile)
+   descFileName <- paste0(topDir,'/',varName,'.desc')
+   dput(desc,file=descFileName)
    sharedGlobals[[varName]] <- tmp
 }
 
 # create a mutex shareable across threads
-rthreadsMakeMutex <- function(mutexName,infoDir='~/') 
+rthreadsMakeMutex <- function(mutexName) 
 {
    tmp <- boost.mutex()
    desc <- describe(tmp)
-   descFile <- paste0(infoDir,mutexName,'.desc')
+   descFile <- paste0(topDir,'/',mutexName,'.desc')
    dput(desc,file=descFile)
    sharedGlobals[[mutexName]] <- tmp
 }
 
-rthreadsAttachSharedVar <- function(varName,infoDir='~/') 
+rthreadsAttachSharedVar <- function(varName) 
 {
-   descFile <- paste0(infoDir,varName,'.desc')
+   descFile <- paste0(topDir,'/',varName,'.desc')
    desc <- dget(descFile)
    sharedGlobals[[varName]] <- attach.big.matrix(desc)
 }
@@ -114,21 +122,19 @@ rthreadsAttachMutex <- function(mutexName,infoDir='~/')
 rthreadsWaitDone <- function() 
 {
    rthreadsAtomicInc('nDone')
-   while (sharedGlobals$nDone[1,1] < myGlobals$info$nThreads) {}
+   while (sharedGlobals$nDone[1,1] < myGlobals$nThreads) {}
 }
 
 rthreadsBarrier <- function() 
 {
-   ### mtx <- get('barrMutex0',envir=sharedGlobals)
    mtx <- sharedGlobals$barrMutex0
-   ### barr <- get('barrier0',envir=sharedGlobals)
    barr <- sharedGlobals$barrier0
    synchronicity::lock(mtx)
    count <- barr[1,1] - 1
    barr[1,1] <- count
    sense <- barr[1,2]
    if (count == 0) {  # all done
-      barr[1,1] <- myGlobals$info$nThreads
+      barr[1,1] <- myGlobals$nThreads
       barr[1,2] <- 1 - barr[1,2]
       synchronicity::unlock(mtx)
       return()
