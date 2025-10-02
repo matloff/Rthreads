@@ -15,17 +15,9 @@ rthreadsSetup <- function(nThreads)
    myGlobals$myID <- 0
 
    # set up shared globals
-#    sharedGlobals$nThreads <- nThreads
-#    sharedGlobals$nJoined <- 1
-#    sharedGlobals$nDone <- 0
-   myGlobals$nThreads <- nThreads
+   rthreadsMakeSharedVar('nThreads',1,1,nThreads)
    rthreadsMakeSharedVar('nJoined',1,1,1)
    rthreadsMakeSharedVar('nDone',1,1,0)
-
-##    for (nm in names(sharedVars)) {
-##       sharedGlobals[[nm]] <- sharedVars[[nm]]
-##    }
-
    rthreadsMakeMutex('mutex0')
    rthreadsMakeBarrier()
    
@@ -38,6 +30,7 @@ rthreadsJoin <- function()
    # check in and get my ID
    mgrThread <- 'myID' %in% names(myGlobals)
    if (!mgrThread) {
+      rthreadsAttachSharedVar('nThreads')
       rthreadsAttachSharedVar('nJoined')
       rthreadsAttachMutex('mutex0')
       nj <- rthreadsAtomicInc('nJoined') 
@@ -48,7 +41,7 @@ rthreadsJoin <- function()
    }
 
    # wait for everyone else
-   while (sharedGlobals$nJoined[1,1] < myGlobals$nThreads) {}
+   while (sharedGlobals$nJoined[1,1] < sharedGlobals$nThreads[1,1]) {}
 
 }
 
@@ -73,7 +66,7 @@ rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
 rthreadsMakeBarrier <- function()
 {
    rthreadsMakeMutex('barrMutex0')
-   rthreadsMakeSharedVar('barrier0',1,2,initVal=c(sharedGlobals$nThreads,0))
+   rthreadsMakeSharedVar('barrier0',1,2,initVal=c(sharedGlobals$nThreads[1,1],0))
 }
 
 rthreadsInitBarrier <- function() 
@@ -87,7 +80,7 @@ rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL)
 {
    tmp <- big.matrix(nr,nc,type='double')
    if (!is.null(initVal)) {
-      tmp[,] <- initVal
+      tmp[1,] <- initVal
    } 
    desc <- describe(tmp)
    descFileName <- paste0(topDir,'/',varName,'.desc')
@@ -112,9 +105,9 @@ rthreadsAttachSharedVar <- function(varName)
    sharedGlobals[[varName]] <- attach.big.matrix(desc)
 }
 
-rthreadsAttachMutex <- function(mutexName,infoDir='~/') 
+rthreadsAttachMutex <- function(mutexName) 
 {
-   descFile <- paste0(infoDir,mutexName,'.desc')
+   descFile <- paste0(mutexName,'.desc')
    desc <- dget(descFile)
    sharedGlobals[[mutexName]] <- attach.mutex(desc)
 }
@@ -122,7 +115,7 @@ rthreadsAttachMutex <- function(mutexName,infoDir='~/')
 rthreadsWaitDone <- function() 
 {
    rthreadsAtomicInc('nDone')
-   while (sharedGlobals$nDone[1,1] < myGlobals$nThreads) {}
+   while (sharedGlobals$nDone[1,1] < sharedGlobals$nThreads) {}
 }
 
 rthreadsBarrier <- function() 
@@ -134,7 +127,7 @@ rthreadsBarrier <- function()
    barr[1,1] <- count
    sense <- barr[1,2]
    if (count == 0) {  # all done
-      barr[1,1] <- myGlobals$nThreads
+      barr[1,1] <- sharedGlobals$nThreads
       barr[1,2] <- 1 - barr[1,2]
       synchronicity::unlock(mtx)
       return()
