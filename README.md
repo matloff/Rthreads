@@ -132,9 +132,9 @@ means to not type anything in that window in that step.
 | 2    | rthreadsJoin()                             | rthreadsJoin()                    |
 | 3    | rthreadsMakeSharedVar('x',1,1,initVal=3)   |                                   |
 | 4    |                                            | rthreadsAttachSharedVar('x')      |
-| 5    | sharedGlobals[['x']]1,1]                       | sharedGlobals[['x']][1,1]     |
+| 5    | sharedGlobals[['x']][1,1]                       | sharedGlobals[['x']][1,1]     |
 | 6    |                                            | sharedGlobals[['x']][1,1] <- 8    |
-| 7    | sharedGlobals[['x']]1,1]                   | sharedGlobals[['x']][1,1]         |
+| 7    | sharedGlobals[['x']][1,1]                   | sharedGlobals[['x']][1,1]         |
 | 8    | sharedGlobals$x[1,1] <- 12                 |                                   |
 | 9    | sharedGlobals[['x']]1,1]                   | sharedGlobals[['x']][1,1]         |
 | 10   | myGlobals[['myID']]                        | myGlobals[['myID']]                    |
