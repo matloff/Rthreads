@@ -107,7 +107,7 @@ rthreadsAttachSharedVar <- function(varName)
 
 rthreadsAttachMutex <- function(mutexName) 
 {
-   descFile <- paste0(mutexName,'.desc')
+   descFile <- paste0(topDir,'/',mutexName,'.desc')
    desc <- dget(descFile)
    sharedGlobals[[mutexName]] <- attach.mutex(desc)
 }
