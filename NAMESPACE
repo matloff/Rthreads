@@ -4,6 +4,7 @@ import(bigmemory,synchronicity,parallel)
 export(rthreadsSetup,rthreadsJoin,rthreadsAtomicInc,rthreadsAttachMutex,
    rthreadsAttachSharedVar,rthreadsMakeMutex,rthreadsMakeSharedVar,
    rthreadsWaitDone,rthreadsMakeBarrier,rthreadsInitBarrier,rthreadsBarrier,
+   rthreadsSGset,rthreadsSGget,
    quickstart)
 
 importFrom("utils", "browseURL")

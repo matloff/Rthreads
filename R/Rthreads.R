@@ -139,6 +139,20 @@ rthreadsBarrier <- function()
 
 # utils to get around "hidden" namespace
 
+rthreadsSGset <- function(sharedVarName,rows,cols,value) 
+{
+   tmp <- paste0('sharedGlobals$',sharedVarName)
+   sv <- evalr(tmp)
+   sv[rows,cols] <- value
+}
+
+rthreadsSGget <- function(sharedVarName,rows,cols) 
+{
+   tmp <- paste0('sharedGlobals$',sharedVarName)
+   sv <- evalr(tmp)
+   sv[rows,cols]
+}
+
 # print all of myGlobals
 rthreadsPrintMG <- function() 
 {
@@ -159,6 +173,11 @@ rthreadsDoCmds <- function()
       if (cmd == '\n') return()
       evalr(cmd)
    }
+}
+
+evalr <- function (toexec)
+{
+    eval(parse(text = toexec), parent.frame())
 }
 
 quickstart <- function() 
