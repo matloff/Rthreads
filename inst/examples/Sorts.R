@@ -1,22 +1,35 @@
 
-# threads configuration: run
-# rthreadsSetup(nThreads=2,
-#    sharedVars=list(nextRowNum=c(1,1,3),m=c(10,100000000)))
+# threads configuration: run rthreadsSetup(nThreads=2) or other number
+# of threads
+
+# a general issue in parallel computation is that of "load balance,"
+# meaning that each thread ends up doing approximately the same amount
+# of work; here we aim for that via dynamic thread assignment, but if we
+# had a very large number of rows, random pre-assignment would probably
+# work fine, and would not have the overhead of engaging with a mutex
 
 setup <- function()  # run in "manager thread"
 {
+   rthreadsMakeSharedVar('nextRowNum',1,1,3)
+   rthreadsMakeSharedVar('m',10,100000000)
    # generate vectors to be sorted, of different sizes
-   tmp <- c(30000000,70000000)
+   tmp <- c(30000000,100000000)
    set.seed(9999)
-   nvals <- sample(tmp,10,replace=TRUE)  # 10 vectors to sort
+   nvals <- sample(tmp,10,replace=TRUE)  # lengths of 10 vectors to sort
    for (i in 1:10) {
       n <- nvals[i]
-      m[i,1:(n+1)] <- c(n,runif(n))
+      m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
    }
 }
 
 doSorts <- function()  # run in all threads, maybe with system.time()
 {
+
+    thread0 <- "myID" %in% names(myGlobals)
+    if (!thread0) {
+        rthreadsAttachSharedVar("nextRowNum")
+        rthreadsAttachSharedVar("m")
+    }
 
    rowNum <- myGlobals$myID+1  # my first vector to sort
 
@@ -24,13 +37,12 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       # as illustration of parallel operation, see which threads execute
       # sorts on which rows
       print(rowNum)
-      n <- m[rowNum,1]
+      n <- m[rowNum,1]  # vector length
       x <- m[rowNum,2:(n+1)]
       m[rowNum,2:(n+1)] <- sort(x)
       rowNum <- rthreadsAtomicInc('nextRowNum')
    }
 
-   # rthreadsWaitDone()
    rthreadsBarrier()
 
 }
