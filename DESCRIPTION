@@ -1,6 +1,5 @@
 Package: Rthreads
 Version: 1.0.2
-Author: Norm Matloff <nsmatloff@ucdavis.edu>
 Authors@R: person(given = "Norm",
                        family = "Matloff",
                        role = c("aut", "cre"),

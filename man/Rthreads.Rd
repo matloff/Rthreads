@@ -19,18 +19,19 @@ Utilties to implement threads programming in R.
 }
 
 \usage{
-rthreadsSetup(nThreads, sharedVars = NULL,  mutexNames = NULL, 
-   infoDir = '~/')
+rthreadsSetup(nThreads)
 rthreadsAtomicInc(sharedV,mtx='mutex0',increm=1)
-rthreadsAttachSharedVar(varName,infoDir='~/')
+rthreadsAttachSharedVar(varName)
 rthreadsInitBarrier()
 rthreadsMakeBarrier()
-rthreadsMakeSharedVar(varName,nr,nc,infoDir='~/',initVal=NULL)
+rthreadsMakeSharedVar(varName,nr,nc,initVal=NULL)
 rthreadsWaitDone()
-rthreadsAttachMutex(mutexName,infoDir='~/')
+rthreadsAttachMutex(mutexName)
 rthreadsBarrier()
-rthreadsJoin(infoDir= '~')
-rthreadsMakeMutex(mutexName,infoDir='~/')
+rthreadsJoin()
+rthreadsMakeMutex(mutexName)
+rthreadsSGset(sharedVarName,rows,cols,value)
+rthreadsSGget(sharedVarName,rows,cols)
 quickstart()
 }
 
@@ -47,6 +48,9 @@ quickstart()
   \item{nc}{Number of columns.}
   \item{mutexName}{Quoted name.}
   \item{initVal}{Initial value of shared variable.}
+  \item{nr}{Rows of submatrix.}
+  \item{nc}{Columns of submatrix.}
+  \item{value}{Value to be assigned to submatrix.}
 }
 
 \details{
@@ -64,6 +68,10 @@ Shared variables must be of matrix type (a restriction of
 in one window (optionally in \code{rthreadsSetup}), then calls
 \code{rthreadsAttachSharedVar} in the other windows to share them.
 
+The "getter" and "setter" functions \code{rthreadsSGget} and
+\code{rthreadsSGset} enable the user to query/set the values of shared
+globals from outside the package in the R console.
+
 Type 'quickstart()' for detailed examples.
 
 }
@@ -71,8 +79,9 @@ Type 'quickstart()' for detailed examples.
 \value{
 
 Almost all functions have no return value, operating via side effects to
-the global variables.. The exception is \code{rthreadsAtomic}, which
-returns the old value of the incremented variable.
+the global variables. An exception is \code{rthreadsAtomic}, which
+returns the old value of the incremented variable. Another exception is 
+\code{rthreadsSGget}, which returns the queried submatrix value.
 
 }
 

@@ -1,4 +1,4 @@
-# Rthreads -- Threads for R!
+# Rthreads -- Threads(-Like) Package for R!
 
 # Filling an Important Gap
 
@@ -29,14 +29,15 @@
 
 * Message passing:
 
-  * We would write 2 functions, a worker and a manager. There
-    would be 4 copies of the worker code, running fully independently.
+  * We would write 2 functions, a worker and a manager. There would be,
+    say, 4 copies of the worker code, running fully independently.
 
   * The manager would communicate with the workers by sending/receiving
-    messages across the network.
+    messages across the network (though still within the same machine,
+    in this example).
 
-  * The manager would, say, break a task into 4 chunks, and send the
-    chunks to the workers.
+  * The manager would break a task into 4 chunks, say by breaking the
+    data into 4 chunks, and send the chunks to the workers.
 
   * Each worker would work on its chunk, then send the result back
     to the manager, which would combine the received results.
@@ -85,9 +86,9 @@
 
 # How Rthreads Works
 
-* The sole data type is matrix, a **bigmemory** constraint. A matrix  must be
-  explicitly written with two (possibly empty) subscripts,
-  e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
+* The sole data type is matrix (or vectors, as one-column matrices), a
+  **bigmemory** constraint. A matrix  must be explicitly written with
+  two (possibly empty) subscripts, e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
 
 * The related **synchronicity** package provides mutex support.
 
@@ -101,7 +102,7 @@
   * Use **tmux** if screen space is an issue. See below.
 
 * Run **rthreadsSetup** in the first window, 
-  then run **rthreadsJoin** in each window.
+  then run **rthreadsJoin** in each window (including the first).
 
   Now call your application function code in each window.
 
@@ -132,17 +133,17 @@ means to not type anything in that window in that step.
 | 2    | rthreadsJoin()                             | rthreadsJoin()                    |
 | 3    | rthreadsMakeSharedVar('x',1,1,initVal=3)   |                                   |
 | 4    |                                            | rthreadsAttachSharedVar('x')      |
-| 5    | sharedGlobals[['x']][1,1]                       | sharedGlobals[['x']][1,1]     |
-| 6    |                                            | sharedGlobals[['x']][1,1] <- 8    |
-| 7    | sharedGlobals[['x']][1,1]                   | sharedGlobals[['x']][1,1]         |
-| 8    | sharedGlobals$x[1,1] <- 12                 |                                   |
-| 9    | sharedGlobals[['x']]1,1]                   | sharedGlobals[['x']][1,1]         |
+| 5    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
+| 6    |                                            | rthreadsSGset('x',1,1,8)
+| 7    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
+| 8    | rthreadsSGset('x',1,1,12)
+| 9    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
 | 10   | myGlobals[['myID']]                        | myGlobals[['myID']]                    |
 
 
 : Get-acquainted run-through
 
-(R environments use R list notation. **myGlobals[['myID']** and
+(R environments use R list notation; **myGlobals[['myID']** and
 **myGlobals$myID** are equivalent.)
 
 Here is what happens:
@@ -150,8 +151,10 @@ Here is what happens:
 * Step 1: Set up 2 threads (which will be numbered 0 and 1).
 
 * Step 2: Each thread checks in. The first thread has already done so,
-  so just one thread checks in this case. Note that each thread, upon
-checking in, will then wait for the others to check in.
+  so just one thread checks in this case, but there still must be code
+  that forces even thread 0 to wait until everyone has joined. Note that
+  each thread, upon checking in, will then wait for the others to check
+  in.
 
 * Step 3: Thread 0 creates a shared variable **x**, initial value 3.
 
@@ -181,7 +184,7 @@ We have a number of vectors, each to be sorted.
 # rthreadsSetup(nThreads=2,
 #    sharedVars=list(nextRowNum=c(1,1,3),m=c(10,100000000)))
 
-setup <- function()  # run in "manager thread"
+setup <- function()  # run in thread 0
 {
    # generate vectors to be sorted, of different sizes
    tmp <- c(30000000,70000000)
@@ -299,6 +302,10 @@ Overview of the code:
   could work on rows 1 through 5, with the second handling rows 6 to 10.
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
+
+**Note:** Though only one thread runs **rthreadsSetup**, which we have
+done with thread 0 here, that thread does NOT play the role of a
+"manager" as in message-passing. All threads play symmetric roles.
  
 # Example 2: Shortest paths in a graph
 
