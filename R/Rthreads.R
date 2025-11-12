@@ -4,13 +4,21 @@ library(synchronicity)
 
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
+# topDir <- getwd()
+# dir.create('descFiles')
+
+browser()
+
 topDir <- getwd()
+# topDirEnv <- new.env(parent=emptyenv())
+# topDirEnv$topDir <- topDir
 dir.create('descFiles')
 
 # executed only by thread 0
 # both sharedVars and nonsharedVars are R lists
 rthreadsSetup <- function(nThreads) 
 { 
+
    # set up myGlobals
    myGlobals$myID <- 0
 
@@ -28,8 +36,8 @@ rthreadsJoin <- function()
 {
 
    # check in and get my ID
-   mgrThread <- 'myID' %in% names(myGlobals)
-   if (!mgrThread) {
+   zeroThread <- 'myID' %in% names(myGlobals)
+   if (!zeroThread) {
       rthreadsAttachSharedVar('nThreads')
       rthreadsAttachSharedVar('nJoined')
       rthreadsAttachMutex('mutex0')
