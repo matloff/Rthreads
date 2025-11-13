@@ -8,14 +8,15 @@
 # had a very large number of rows, random pre-assignment would probably
 # work fine, and would not have the overhead of engaging with a mutex
 
-setup <- function()  # run in "manager thread"
+setup <- function(vecLengths=1000)  # run in thread 0
 {
    rthreadsMakeSharedVar('nextRowNum',1,1,3)
-   rthreadsMakeSharedVar('m',10,100000000)
+   rthreadsMakeSharedVar('m',10,vecLengths+1)
    # generate vectors to be sorted, of different sizes
-   tmp <- c(30000000,100000000)
+   tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)
    nvals <- sample(tmp,10,replace=TRUE)  # lengths of 10 vectors to sort
+   m <- sharedGlobals$m
    for (i in 1:10) {
       n <- nvals[i]
       m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
@@ -25,11 +26,12 @@ setup <- function()  # run in "manager thread"
 doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
-    thread0 <- "myID" %in% names(myGlobals)
-    if (!thread0) {
+    if (myGlobals$myID != 0) {
         rthreadsAttachSharedVar("nextRowNum")
         rthreadsAttachSharedVar("m")
     }
+   
+   m <- sharedGlobals$m
 
    rowNum <- myGlobals$myID+1  # my first vector to sort
 

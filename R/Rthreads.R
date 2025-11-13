@@ -7,8 +7,6 @@ sharedGlobals <- new.env(parent=emptyenv())
 # topDir <- getwd()
 # dir.create('descFiles')
 
-browser()
-
 topDir <- getwd()
 # topDirEnv <- new.env(parent=emptyenv())
 # topDirEnv$topDir <- topDir
