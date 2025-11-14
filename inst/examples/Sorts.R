@@ -10,7 +10,7 @@
 
 setup <- function(vecLengths=1000)  # run in thread 0
 {
-   rthreadsMakeSharedVar('nextRowNum',1,1,3)
+   rthreadsMakeSharedVar('nextRowNum',1,1)
    rthreadsMakeSharedVar('m',10,vecLengths+1)
    # generate vectors to be sorted, of different sizes
    tmp <- c(round(0.3*vecLengths),vecLengths)
@@ -46,6 +46,6 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       rowNum <- rthreadsAtomicInc('nextRowNum') 
    }
 
-   rthreadsBarrier()
+   rthreadsBarrier()  # not really needed
 
 }
