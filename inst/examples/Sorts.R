@@ -21,6 +21,7 @@ setup <- function(vecLengths=1000)  # run in thread 0
       n <- nvals[i]
       m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
    }
+   sharedGlobals$nextRowNum[1,1] <- sharedGlobals$nThreads[1,1] + 1
 }
 
 doSorts <- function()  # run in all threads, maybe with system.time()
@@ -29,7 +30,7 @@ doSorts <- function()  # run in all threads, maybe with system.time()
     if (myGlobals$myID != 0) {
         rthreadsAttachSharedVar("nextRowNum")
         rthreadsAttachSharedVar("m")
-    }
+    } 
    
    m <- sharedGlobals$m
 
@@ -42,7 +43,7 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       n <- m[rowNum,1]  # vector length
       x <- m[rowNum,2:(n+1)]
       m[rowNum,2:(n+1)] <- sort(x)
-      rowNum <- rthreadsAtomicInc('nextRowNum')
+      rowNum <- rthreadsAtomicInc('nextRowNum') 
    }
 
    rthreadsBarrier()

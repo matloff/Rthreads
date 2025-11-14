@@ -133,7 +133,7 @@ rthreadsBarrier <- function()
    barr[1,1] <- count
    sense <- barr[1,2]
    if (count == 0) {  # all done
-      barr[1,1] <- sharedGlobals$nThreads
+      barr[1,1] <- sharedGlobals$nThreads[1,1]
       barr[1,2] <- 1 - barr[1,2]
       synchronicity::unlock(mtx)
       return()
