@@ -4,12 +4,7 @@ library(synchronicity)
 
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
-# topDir <- getwd()
-# dir.create('descFiles')
-
 topDir <- getwd()
-# topDirEnv <- new.env(parent=emptyenv())
-# topDirEnv$topDir <- topDir
 dir.create('descFiles')
 
 # executed only by thread 0
@@ -130,7 +125,7 @@ rthreadsBarrier <- function()
    barr <- sharedGlobals$barrier0
    synchronicity::lock(mtx)
    count <- barr[1,1] - 1
-   barr[1,1] <- count
+   Sbarr[1,1] <- count
    sense <- barr[1,2]
    if (count == 0) {  # all done
       barr[1,1] <- sharedGlobals$nThreads[1,1]
@@ -144,6 +139,7 @@ rthreadsBarrier <- function()
 }
 
 # utils to get around "hidden" namespace
+# rows, cols are ranges, e.g. 5:25
 
 rthreadsSGset <- function(sharedVarName,rows,cols,value) 
 {
@@ -152,10 +148,11 @@ rthreadsSGset <- function(sharedVarName,rows,cols,value)
    sv[rows,cols] <- value
 }
 
-rthreadsSGget <- function(sharedVarName,rows,cols) 
+rthreadsSGget <- function(sharedVarName,rows,cols,pointerOnly=FALSE) 
 {
    tmp <- paste0('sharedGlobals$',sharedVarName)
    sv <- evalr(tmp)
+   if (pointerOnly) return(sv)
    sv[rows,cols]
 }
 
