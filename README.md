@@ -173,6 +173,10 @@ Here is what happens:
 * Step 10: We confirm that the thread IDs are 0 and 1. Note that they
   are not shared.
 
+**Note:** Though only one thread runs **rthreadsSetup**, which we have
+done with thread 0 here, that thread does NOT play the role of a
+"manager" as in message-passing. All threads play symmetric roles.
+
 # Example 1: Sorting many long vectors
 
 (Note: The code for all of the examples here are in **inst/examples**.)
@@ -180,38 +184,54 @@ Here is what happens:
 We have a number of vectors, each to be sorted.
 
 ``` r
-# threads configuration: run
-# rthreadsSetup(nThreads=2,
-#    sharedVars=list(nextRowNum=c(1,1,3),m=c(10,100000000)))
+# threads configuration: run rthreadsSetup(nThreads=2) or other number
+# of threads
 
-setup <- function()  # run in thread 0
+# a general issue in parallel computation is that of "load balance,"
+# meaning that each thread ends up doing approximately the same amount
+# of work; here we aim for that via dynamic thread assignment, but if we
+# had a very large number of rows, random pre-assignment would probably
+# work fine, and would not have the overhead of engaging with a mutex
+
+setup <- function(vecLengths=1000)  # run in thread 0
 {
+   rthreadsMakeSharedVar('nextRowNum',1,1)
+   rthreadsMakeSharedVar('m',10,vecLengths+1)
    # generate vectors to be sorted, of different sizes
-   tmp <- c(30000000,70000000)
+   tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)
-   nvals <- sample(tmp,10,replace=TRUE)  # 10 vectors to sort
+   nvals <- sample(tmp,10,replace=TRUE)  # lengths of 10 vectors to sort
+   m <- sharedGlobals$m
    for (i in 1:10) {
       n <- nvals[i]
-      sharedGlobals$m[i,1:(n+1)] <- c(n,runif(n))
+      m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
    }
+   sharedGlobals$nextRowNum[1,1] <- sharedGlobals$nThreads[1,1] + 1
 }
 
 doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
+    if (myGlobals$myID != 0) {
+        rthreadsAttachSharedVar("nextRowNum")
+        rthreadsAttachSharedVar("m")
+    } 
+   
+   m <- sharedGlobals$m
+
    rowNum <- myGlobals$myID+1  # my first vector to sort
 
-   while (rowNum <= nrow(sharedGlobals$m)) {
+   while (rowNum <= nrow(m)) {
       # as illustration of parallel operation, see which threads execute
       # sorts on which rows
       print(rowNum)
-      n <- sharedGlobals$m[rowNum,1]
-      x <- sharedGlobals$m[rowNum,2:(n+1)]
-      sharedGlobals$m[rowNum,2:(n+1)] <- sort(x)
-      rowNum <- rthreadsAtomicInc('nextRowNum')
+      n <- m[rowNum,1]  # vector length
+      x <- m[rowNum,2:(n+1)]
+      m[rowNum,2:(n+1)] <- sort(x)
+      rowNum <- rthreadsAtomicInc('nextRowNum') 
    }
 
-   rthreadsBarrier()
+   rthreadsBarrier()  # not really needed
 
 }
 ```
@@ -220,39 +240,27 @@ To run, say with just 2 threads:
 
 1. Let's refer to the 2 terminal windows as W0 and W1.
 
-2. Start **Rthreads**: 
+2. Load the code for this example.
+
+3. Start **Rthreads** as shown above.
 
    In W0, run
 
    ``` r
-   rthreadsSetup(nThreads=2,
-      sharedVars=list(nextRowNum=c(1,1,3),m=c(10,100000000)))
+   setup()
    ```
 
-   This sets up 2 threads (running in the 2 windows), and 2 shared
-   variables: **nextRowNum**, a scalar, and **m**, the latter being our
-   matrix of rows to be sorted, 10 rows of length 100000000 each.
+   This sets up the various shared variables for this example, including
+   **m**, our data matrix. Each row will contain a vector to be sorted.
 
-   In both windows, run
-
-   ``` r 
-   rthreadsJoin()
-   ```
-
-   Here each thread "checks in," attaches the shared variables, sets its
-   ID, and then waits until all the threads have joined.
-
-6. Set up and run app: 
-
-   In W0, run **setup()** to generate the data.
-
-   In both W0 and W1, run **doSorts()** to do the sorting.
+4. In both W0 and W1, run **doSorts()** to do the sorting.
 
    Sorted rows are now available in **sharedGlobals$m**.
 
 Overview of the code:
 
-* Each thread works on one row of **m** at a time. 
+* Each thread works on one row of **m** at a time. (See comments in the
+  code for other approaches.)
 
 * When a thread finishes sorting a row, it determines the next row to 
   sort by inspecting the shared variable **nextRowNum**. It increments that
@@ -272,13 +280,14 @@ Overview of the code:
 
   ``` r
   rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
-  {  
-     mtx <- get(mtx,envir=sharedGlobals)
+  {
+     mtx <- sharedGlobals[[mtx]]
      synchronicity::lock(mtx)
-     shrdv <- get(sharedV,env=sharedGlobals)
-     oldVal <- shrdv[1,]
+     shrdv <- sharedGlobals[[sharedV]]
+     oldVal <- shrdv[1, ]
      newVal <- oldVal + increm
-     shrdv[1,1] <- newVal
+     shrdv[1, ] <- newVal
+     sharedGlobals[[sharedV]] <- shrdv
      synchronicity::unlock(mtx)
      return(oldVal)
   }  
@@ -302,10 +311,6 @@ Overview of the code:
   could work on rows 1 through 5, with the second handling rows 6 to 10.
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
-
-**Note:** Though only one thread runs **rthreadsSetup**, which we have
-done with thread 0 here, that thread does NOT play the role of a
-"manager" as in message-passing. All threads play symmetric roles.
  
 # Example 2: Shortest paths in a graph
 
@@ -527,8 +532,7 @@ given round do we update the actual dataset.
 Since we are working column by column, this means earlier imputations
 can be employed in the regression actions of later columns, hopefully
 improving imputation accuracy. (Again, this may or may not be the case,
-but that is the motivation behind this imputation algorithm.) See
-comments in the code for further discussion.
+but that is the motivation behind this imputation algorithm.) 
 
 The purpose of this example is mainly to illustrate the concept of a
 *barrier*, an important threads concept. When a thread reaches that
