@@ -36,14 +36,17 @@ findMinDists <- function()
       rthreadsAttachSharedVar('NDone')
       rthreadsAttachSharedVar('dstVrtx')
    } 
-   destVertex <- dstVrtx[1,1]
-   n <- nrow(adjm[,])
-   myRows <- parallel::splitIndices(n,myGlobals$info$nThreads)[[myGlobals$myID+1]]
+   destVertex <- sharedGlobals$dstVrtx[1,1]
+   adjm <- sharedGlobals$adjm
+   n <- nrow(adjm)
+   myRows <- 
+      parallel::splitIndices(n,sharedGlobals$nThreads[,])[[myGlobals$myID+1]]
    mySubmatrix <- adjm[myRows,]
 
    # find "dead ends," vertices to lead nowhere
    tmp <- rowSums(adjm[,])
    deadEnds <- which(tmp == 0)
+   done <- sharedGlobals$done
    done[deadEnds,1] <- 1
    done[deadEnds,2] <- 2
    # and don't need a path from destVertex to itself
@@ -53,7 +56,7 @@ findMinDists <- function()
    imDone <- FALSE
    for (iter in 1:(n-1)) {
       rthreadsBarrier()
-      if (NDone[1,1] == myGlobals$info$nThreads) return()
+      if (NDone[1,1] == sharedGlobals$nThreads) return()
       if (iter > 1 && (iter <= n-1))
          adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
       if (!imDone) {

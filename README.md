@@ -423,7 +423,8 @@ As a test run, do
 
 ``` r
 data(svcensus)
-setup(svcensus,4)
+svc <- regtools::factorsToDummies(svcensus,omitLast=TRUE,dfOut=TRUE)
+setup(svc,4)
 ```
 
 in the first window.  This generates a DAG for our test, and specifies

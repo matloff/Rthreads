@@ -72,7 +72,7 @@ rthreadsMakeBarrier <- function()
 
 rthreadsInitBarrier <- function() 
 {
-   sharedGlobals$barrier0[1,] <- c(sharedGlobals$nThreads,0)
+   sharedGlobals$barrier0[1,] <- c(sharedGlobals$nThreads[,],0)
 }
 
 # create a variable shareable across threads; must be a matrix, even if
@@ -81,7 +81,7 @@ rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL)
 {
    tmp <- big.matrix(nr,nc,type='double')
    if (!is.null(initVal)) {
-      tmp[1,] <- initVal
+      tmp[,] <- initVal
    } 
    desc <- describe(tmp)
    descFileName <- paste0(topDir,'/',varName,'.desc')
