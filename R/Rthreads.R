@@ -17,7 +17,7 @@ rthreadsSetup <- function(nThreads)
 
    # set up shared globals
    rthreadsMakeSharedVar('nThreads',1,1,nThreads)
-   rthreadsMakeSharedVar('nJoined',1,1,1)
+   rthreadsMakeSharedVar('nJoined',1,1,0)
    rthreadsMakeSharedVar('nDone',1,1,0)
    rthreadsMakeMutex('mutex0')
    rthreadsMakeBarrier()
@@ -27,7 +27,6 @@ rthreadsSetup <- function(nThreads)
 # run by all threads, including 0
 rthreadsJoin <- function() 
 {
-
    # check in and get my ID
    zeroThread <- 'myID' %in% names(myGlobals)
    if (!zeroThread) {
@@ -39,11 +38,10 @@ rthreadsJoin <- function()
       rthreadsAttachSharedVar('nDone')
       rthreadsAttachSharedVar('barrier0')
       rthreadsAttachMutex('barrMutex0')
-   }
+   } else nj <- rthreadsAtomicInc('nJoined') 
 
    # wait for everyone else
    while (sharedGlobals$nJoined[1,1] < sharedGlobals$nThreads[1,1]) {}
-
 }
 
 # atomically increases sharedV by increm, returning old value; sharedV
@@ -125,7 +123,7 @@ rthreadsBarrier <- function()
    barr <- sharedGlobals$barrier0
    synchronicity::lock(mtx)
    count <- barr[1,1] - 1
-   Sbarr[1,1] <- count
+   barr[1,1] <- count
    sense <- barr[1,2]
    if (count == 0) {  # all done
       barr[1,1] <- sharedGlobals$nThreads[1,1]
