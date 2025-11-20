@@ -17,7 +17,7 @@ rthreadsSetup <- function(nThreads)
 
    # set up shared globals
    rthreadsMakeSharedVar('nThreads',1,1,nThreads)
-   rthreadsMakeSharedVar('nJoined',1,1,0)
+   rthreadsMakeSharedVar('nJoined',1,1,1)
    rthreadsMakeSharedVar('nDone',1,1,0)
    rthreadsMakeMutex('mutex0')
    rthreadsMakeBarrier()
@@ -38,7 +38,7 @@ rthreadsJoin <- function()
       rthreadsAttachSharedVar('nDone')
       rthreadsAttachSharedVar('barrier0')
       rthreadsAttachMutex('barrMutex0')
-   } else nj <- rthreadsAtomicInc('nJoined') 
+   } 
 
    # wait for everyone else
    while (sharedGlobals$nJoined[1,1] < sharedGlobals$nThreads[1,1]) {}
@@ -146,11 +146,14 @@ rthreadsSGset <- function(sharedVarName,rows,cols,value)
    sv[rows,cols] <- value
 }
 
-rthreadsSGget <- function(sharedVarName,rows,cols,pointerOnly=FALSE) 
+rthreadsSGget <- 
+   function(sharedVarName,rows='all',cols='all',pointerOnly=FALSE)
 {
    tmp <- paste0('sharedGlobals$',sharedVarName)
    sv <- evalr(tmp)
    if (pointerOnly) return(sv)
+   if (rows == 'all') rows <- 1:nrow(sv)
+   if (cols == 'all') cols <- 1:ncol(sv)
    sv[rows,cols]
 }
 
