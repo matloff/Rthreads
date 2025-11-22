@@ -2,25 +2,37 @@
 # threads configuration: run
 #    rthreadsSetup(nThreads=2)
 
+# to run the code, first run setup() at thread 0, then findMinDists() at
+# all nodes
+
+# as written, code finds lengths of shortest paths, not the paths
+# themselves 
+
 # algorithm assumes a Directed Acyclic Graph (DAG); for test cases, an
-# easy 
+# easy source is to apply 
 
 setup <- function(preDAG,destVertex)  # run in thread 0
 {
    library(bnlearn)
    # to generate a DAG, take any data frame and run it through, say,
    # bnlearn:hc
-   adj <- amat(hc(preDAG))
+   adj <- amat(hc(preDAG))  # not a Big Memory object
    n <- nrow(adj)
    rthreadsMakeSharedVar('adjm',n,n,initVal=adj)
    rthreadsMakeSharedVar('adjmPow',n,n,initVal=adj)
-   # if in row i = (u,v), u is not 0 then it means this path search ended
-   # after iteration u; v = 1 means reached the destination, v = 2
-   # means no paths to destination exist
-   rthreadsMakeSharedVar('done',n,2,initVal=rep(0,2*n))
+
    rthreadsMakeSharedVar('imDone',1,1,initVal=0)
    rthreadsMakeSharedVar('nDone',1,1,initVal=0)
    rthreadsMakeSharedVar('dstVrtx',1,1,initVal=destVertex)
+
+   # role of the 'done' variable: if in row i = (u,v), u is not 0 then
+   # it means this path search ended after iteration u; v = 1 means
+   # reached the destination, v = 2 means no paths to destination exist;
+   # thus for each vertex i, the final value of done[i,2] will indicate
+   # whether a path exists from i to dstVrtx (done[i,2] = 1), and if so,
+   # the length of the path
+   rthreadsMakeSharedVar('done',n,2,initVal=rep(0,2*n))
+
    rthreadsInitBarrier()
    return()
 }
@@ -28,7 +40,6 @@ setup <- function(preDAG,destVertex)  # run in thread 0
 findMinDists <- function()  
    # run in all threads, maybe with system.time()
 {
-   ### if (myID > 0) {
    if (myGlobals$myID > 0) {
       rthreadsAttachSharedVar('adjm')
       rthreadsAttachSharedVar('adjmPow')
@@ -47,14 +58,20 @@ findMinDists <- function()
    nThreads <- sharedGlobals$nThreads
 
    n <- nrow(adjm)
+   # each thread will work on its assigned group of threads
    myRows <- parallel::splitIndices(n,nThreads[,])[[myGlobals$myID+1]]
    mySubmatrix <- adjm[myRows,]
 
-   # find "dead ends," vertices that lead nowhere but 
-   tmp <- rowSums(adjm[,])
-   deadEnds <- which(tmp == 0)
-   done[deadEnds,1] <- 1
-   done[deadEnds,2] <- 2
+   # find "dead ends," vertices that lead nowhere but themselves;
+   # we should avoid checking their corresponding rows during the
+   # iteration to find shortest paths
+   deadEnds <- matrix(nrow=n,ncol=2)
+   for (i in 1:n) {
+      if (adjm[i,i] == 1) {
+         done[deadEnds,1] <- 1
+         done[deadEnds,2] <- 2
+      }
+   }
    # also, we don't need a path from destVertex to itself
    done[destVertex,] <- c(1,2)
    deadEndsPlusDV <- c(deadEnds,destVertex)
