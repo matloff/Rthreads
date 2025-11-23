@@ -11,12 +11,9 @@
 # algorithm assumes a Directed Acyclic Graph (DAG); for test cases, an
 # easy source is to apply 
 
-setup <- function(preDAG,destVertex)  # run in thread 0
+setup <- function(adjMat,destVertex)  # run in thread 0
 {
-   library(bnlearn)
-   # to generate a DAG, take any data frame and run it through, say,
-   # bnlearn:hc
-   adj <- amat(hc(preDAG))  # not a Big Memory object
+   adj <- adjMat  # not a Big Memory object
    n <- nrow(adj)
    rthreadsMakeSharedVar('adjm',n,n,initVal=adj)
    rthreadsMakeSharedVar('adjmPow',n,n,initVal=adj)
@@ -65,13 +62,14 @@ findMinDists <- function()
    # find "dead ends," vertices that lead nowhere but themselves;
    # we should avoid checking their corresponding rows during the
    # iteration to find shortest paths
-   deadEnds <- matrix(nrow=n,ncol=2)
-   for (i in 1:n) {
-      if (adjm[i,i] == 1) {
+   deadEnds <- rep(0,n)  # value 1 means yes, a dead end
+   for (i in 1:n) 
+      if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1
+   if (sum(deadEnds) > 0) {
          done[deadEnds,1] <- 1
          done[deadEnds,2] <- 2
-      }
    }
+
    # also, we don't need a path from destVertex to itself
    done[destVertex,] <- c(1,2)
    deadEndsPlusDV <- c(deadEnds,destVertex)
