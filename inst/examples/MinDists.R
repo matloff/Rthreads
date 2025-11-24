@@ -59,29 +59,38 @@ findMinDists <- function()
    myRows <- parallel::splitIndices(n,nThreads[,])[[myGlobals$myID+1]]
    mySubmatrix <- adjm[myRows,]
 
-   # find "dead ends," vertices that lead nowhere but themselves;
-   # we should avoid checking their corresponding rows during the
-   # iteration to find shortest paths
-   deadEnds <- rep(0,n)  # value 1 means yes, a dead end
-   for (i in 1:n) 
-      if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1
-   if (sum(deadEnds) > 0) {
-         done[deadEnds,1] <- 1
-         done[deadEnds,2] <- 2
+   # find "dead ends," vertices that lead nowhere but themselves also
+   # known as "absorbing states," as in Markov chain terminology); we
+   # should avoid checking their corresponding rows during the iteration
+   # to find shortest paths
+   deadEnds <- rep(0,n)  # value 1 means yes, a dead end for (i in 1:n)
+   for (i in 1:n) {
+      if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1 
    }
+   nDead <- sum(deadEnds)
+   whichDead <- which(deadEnds)
+   if (nDead > 0) done[whichDead, ] <- c(1,2)
 
    # also, we don't need a path from destVertex to itself
    done[destVertex,] <- c(1,2)
-   deadEndsPlusDV <- c(deadEnds,destVertex)
+   deadEndsPlusDV <- c(whichDead,destVertex)
 
-   imDone <- FALSE
+   imDone <- FALSE  # TRUE means this thread is done with all computation
+   
+   # now iterate over powers of the adjacency matrix, thus generating
+   # all possible paths; iteration i generates all paths of length i,
+   # meaning i jumps, and thus i+1 vertices counting the vertex of
+   # origin; since we assume an acyclic graph, the max path length
+   # not counting the origin is n-1, thus iterations go only through
+   # n-1, not n
    for (iter in 1:(n-1)) {
-      rthreadsBarrier()
+      rthreadsBarrier()  # make all threads are on the same iteration
       if (sharedGlobals$nDone[1,1] == nThreads[1,1]) return()
       if (iter > 1 && (iter <= n-1))
          adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
       if (!imDone) {
-         for (myRow in setdiff(myRows,deadEndsPlusDV)) {
+         for (myRow in myRows) {
+            if (done[myRow,1} >  0 || myRow %i% deadEndsPlusDV) next
             if (done[myRow,1] == 0) {  # this vertex myRow not decided yet
                if (adjmPow[myRow,destVertex] > 0) {
                   done[myRow,1] <- iter
@@ -99,6 +108,10 @@ findMinDists <- function()
                }
             }
          }
+
+         # the 'done' matrix was initialized to all 0s; if 
+         # for some i in myRows we have done[i,1] == 0, that means we
+         # have no yet completed analysis of paths from vertex i
          if (sum(done[myRows,1] == 0) == 0) {
             imDone <- TRUE
             rthreadsAtomicInc('nDone')
