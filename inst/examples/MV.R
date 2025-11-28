@@ -13,7 +13,7 @@
 # for more of a computational-time challenge, try say k-NN instead of
 # linear regresion
 
-setup <- function()  # run in "manager thread"
+setup <- function()  # run in thread 0
 {
    data(NHISlarge)
    nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)

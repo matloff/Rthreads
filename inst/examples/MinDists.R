@@ -8,8 +8,10 @@
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
 
-# algorithm assumes a Directed Acyclic Graph (DAG); for test cases, an
-# easy source is to apply 
+# algorithm assumes a Directed Acyclic Graph (DAG)
+
+# illustrative value of the code is mainly the use of barriers, and used
+# of "dead ends" to reduce work, though DEs involve lots of edge cases
 
 setup <- function(adjMat,destVertex)  # run in thread 0
 {
@@ -37,7 +39,8 @@ setup <- function(adjMat,destVertex)  # run in thread 0
 findMinDists <- function()  
    # run in all threads, maybe with system.time()
 {
-   if (myGlobals$myID > 0) {
+   myID <- myGlobals$myID
+   if (myID > 0) {
       rthreadsAttachSharedVar('adjm')
       rthreadsAttachSharedVar('adjmPow')
       rthreadsAttachSharedVar('done')
@@ -56,7 +59,7 @@ findMinDists <- function()
 
    n <- nrow(adjm)
    # each thread will work on its assigned group of threads
-   myRows <- parallel::splitIndices(n,nThreads[,])[[myGlobals$myID+1]]
+   myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
    mySubmatrix <- adjm[myRows,]
 
    # find "dead ends," vertices that lead nowhere but themselves also
@@ -67,14 +70,14 @@ findMinDists <- function()
    for (i in 1:n) {
       if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1 
    }
-   nDead <- sum(deadEnds)
-   whichDead <- which(deadEnds)
-   if (nDead > 0) done[whichDead, ] <- c(1,2)
-
+   whichDEs <- which(deadEnds==1)
+   whichDEs <- setdiff(whichDEs,destVertex)
+   nDEs <- sum(deadEnds)
+   if (nDEs > 0) done[whichDEs, ] <- c(1,2)
    # also, we don't need a path from destVertex to itself
-   done[destVertex,] <- c(1,2)
-   deadEndsPlusDV <- c(whichDead,destVertex)
-
+   done[destVertex,] <- c(1,1)
+   ### deadEndsPlusDV <- c(whichDEs,destVertex)
+browser()
    imDone <- FALSE  # TRUE means this thread is done with all computation
    
    # now iterate over powers of the adjacency matrix, thus generating
@@ -90,7 +93,8 @@ findMinDists <- function()
          adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
       if (!imDone) {
          for (myRow in myRows) {
-            if (done[myRow,1} >  0 || myRow %i% deadEndsPlusDV) next
+            ### if (done[myRow,1] >  0 || myRow %in% deadEndsPlusDV) next
+            if (done[myRow,1] >  0 || myRow %in% whichDEs) next
             if (done[myRow,1] == 0) {  # this vertex myRow not decided yet
                if (adjmPow[myRow,destVertex] > 0) {
                   done[myRow,1] <- iter
@@ -101,7 +105,7 @@ findMinDists <- function()
                   currDestsEmpty <- (length(currDests) == 0)
                   if (currDestsEmpty ||
                       !currDestsEmpty &&
-                         identical(intersect(currDests,deadEnds),currDests))  {
+                         identical(intersect(currDests,whichDEs),currDests))  {
                      done[myRow,1] <- iter
                      done[myRow,2] <- 2
                   }
