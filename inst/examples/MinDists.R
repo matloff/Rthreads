@@ -5,13 +5,29 @@
 # to run the code, first run setup() at thread 0, then findMinDists() at
 # all nodes
 
+# example:
+
+# adjMat <- rbind(
+#              c(0,1,1,0,0),
+#              c(0,1,0,0,0),
+#              c(0,1,0,1,1),
+#              c(1,0,0,0,1),
+#              c(0,0,0,0,1))
+# setup(adjMat,5)
+# findMinDists()
+
+# check output:
+# rthreadsSGget('done')
+# column 2 of row i is 1 or 2, depending on whether a path exists from
+# vertex i to the destination vertex
+
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
 
 # algorithm assumes a Directed Acyclic Graph (DAG)
 
-# illustrative value of the code is mainly the use of barriers, and used
-# of "dead ends" to reduce work, though DEs involve lots of edge cases
+# illustrative value of the code is mainly the use of barriers, and use
+# of "dead ends" to reduce workload, though DEs involve lots of edge cases
 
 setup <- function(adjMat,destVertex)  # run in thread 0
 {
