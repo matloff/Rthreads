@@ -60,6 +60,7 @@ findMinDists <- function()
    n <- nrow(adjm)
    # each thread will work on its assigned group of threads
    myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
+   myRows <- setdiff(myRows,destVertex)
    mySubmatrix <- adjm[myRows,]
 
    # find "dead ends," vertices that lead nowhere but themselves also
@@ -73,11 +74,13 @@ findMinDists <- function()
    whichDEs <- which(deadEnds==1)
    whichDEs <- setdiff(whichDEs,destVertex)
    nDEs <- sum(deadEnds)
-   if (nDEs > 0) done[whichDEs, ] <- c(1,2)
+   if (nDEs > 0) {
+      # recycling doesn't do what we want here
+      done[whichDEs,1] <- 1
+      done[whichDEs,2] <- 2
+   }
    # also, we don't need a path from destVertex to itself
-   done[destVertex,] <- c(1,1)
-   ### deadEndsPlusDV <- c(whichDEs,destVertex)
-browser()
+   done[destVertex,] <- c(1,2)
    imDone <- FALSE  # TRUE means this thread is done with all computation
    
    # now iterate over powers of the adjacency matrix, thus generating
@@ -93,8 +96,12 @@ browser()
          adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
       if (!imDone) {
          for (myRow in myRows) {
-            ### if (done[myRow,1] >  0 || myRow %in% deadEndsPlusDV) next
-            if (done[myRow,1] >  0 || myRow %in% whichDEs) next
+            if (done[myRow,1] > 0) next 
+            if (myRow %in% whichDEs) {
+                  done[myRow,1] <- iter
+                  done[myRow,2] <- 2
+               next
+            }
             if (done[myRow,1] == 0) {  # this vertex myRow not decided yet
                if (adjmPow[myRow,destVertex] > 0) {
                   done[myRow,1] <- iter
