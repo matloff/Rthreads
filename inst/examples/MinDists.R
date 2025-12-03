@@ -63,11 +63,6 @@ findMinDists <- function(adjMat,destVertex)
    nDone <- sharedGlobals$nDone
    done <- sharedGlobals$done
 
-   # each thread will work on its assigned group of threads
-   myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
-   myRows <- setdiff(myRows,destVertex)
-   mySubmatrix <- adjm[myRows,]
-
    # find "dead ends," vertices that lead nowhere but to themselves; also
    # known as "absorbing states," as in Markov chain terminology); we
    # should avoid checking their corresponding rows during the iteration
@@ -83,6 +78,11 @@ findMinDists <- function(adjMat,destVertex)
       done[whichDEs,1] <- 1
       done[whichDEs,2] <- 2
    }
+
+   # each thread will work on its assigned group of threads
+   myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
+   myRows <- setdiff(myRows,whichDEs)
+   mySubmatrix <- adjm[myRows,]
    
    # now iterate over powers of the adjacency matrix, thus generating
    # all possible paths; iteration i generates all paths of length i,
