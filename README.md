@@ -177,7 +177,7 @@ Here is what happens:
 done with thread 0 here, that thread does NOT play the role of a
 "manager" as in message-passing. All threads play symmetric roles.
 
-# Example 1: Sorting many long vectors
+# Example: Sorting many long vectors
 
 (Note: The code for all of the examples here are in **inst/examples**.)
 
@@ -312,7 +312,7 @@ Overview of the code:
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
  
-# Example 2: Shortest paths in a graph
+# Example: Shortest paths in a graph
 
 We have a *graph* or *network*, consisting of people, cities or
 whatever, with links between some of them, and wish to find the shortest
@@ -320,8 +320,8 @@ path from all vertices A to a vertex B. This ia a famous problem, with
 lots of applications. Here we take a matrix approach, with a parallel
 solution via **Rthreads**.
 
-We treat the case of *directed* graphs, meaning that a link from vertex
-i to vertex j does not imply that a link exists in the opposite
+We treat the case of *directed* graphs, meaning that a direct link from
+vertex i to vertex j does not imply that a link exists in the opposite
 direction.  For a graph of v vertices, the *adjacency matrix* M of the
 graph is of size v X v, with the row i, column j element being 1 or 0,
 depending on whether there is a link from i to j. We also assume the
@@ -331,112 +331,140 @@ out of vertex i cannot return to i.
 Here is the code:
 
 ``` r
-# threads configuration: run
-#    rthreadsSetup(nThreads=2)
+# NOTE: if rerun findMinDists(), must rerun status() first
 
-# algorithm assumes a Directed Acyclic Graph (DAG); for test cases, an
-# easy 
+# as written, code finds lengths of shortest paths, not the paths
+# themselves 
 
-setup <- function(preDAG,destVertex)  # run in "manager thread"
+# basic plan: each thread operates on its assigned set of vertices, i.e.
+# its assigned set of rows in the adjacency matrix adjm; the k-th power
+# of that matrix shows numbers of k-step paths; matrix partitioning is
+# used so that each thread calculates only its own rows in the power
+# matrices
+
+# illustrative value of the code is as an example of "embarrassing
+# parallel" computation; some extra (nonparallel) speedup is obtained
+# via use of "dead ends" to reduce workload (at the cost of considerable
+# edge-case checking)
+
+setup <- function()  # run in thread 0
 {
-   library(bnlearn)
-   # to generate a DAG, take any data frame and run it through, say,
-   # bnlearn:hc
-   adj <- amat(hc(preDAG))
-   n <- nrow(adj)
-   rthreadsMakeSharedVar('adjm',n,n,initVal=adj)
-   rthreadsMakeSharedVar('adjmPow',n,n,initVal=adj)
-   # if in row i = (u,v), u is not 0 then it means this path search ended
-   # after iteration u; v = 1 means reached the destination, v = 2
-   # means no paths to destination exist
-   rthreadsMakeSharedVar('done',n,2,initVal=rep(0,2*n))
-   rthreadsMakeSharedVar('imDone',1,1,initVal=0)
-   rthreadsMakeSharedVar('NDone',1,1,initVal=0)
-   rthreadsMakeSharedVar('dstVrtx',1,1,initVal=destVertex)
+   rthreadsMakeSharedVar('nDone',1,1,initVal=0)
    rthreadsInitBarrier()
-   return()
 }
 
-findMinDists <- function()  
-   # run in all threads, maybe with system.time()
+findMinDists <- function(adjMat,destVertex)  
 {
-   if (myGlobals$myID > 0) {
-      rthreadsAttachSharedVar('adjm')
-      rthreadsAttachSharedVar('adjmPow')
+   adjm <- adjMat
+   adjmPow <- adjm
+   n <- nrow(adjm)
+
+   myID <- myGlobals$myID
+   if (myID == 0) 
+      rthreadsMakeSharedVar('done',n,2,initVal=rep(0,2*n))  # see above
+   rthreadsBarrier()
+   if (myID > 0) {
       rthreadsAttachSharedVar('done')
-      rthreadsAttachSharedVar('NDone')
-      rthreadsAttachSharedVar('dstVrtx')
+      rthreadsAttachSharedVar('nDone')
    } 
-   destVertex <- sharedGlobals$dstVrtx[1,1]
-   n <- nrow(sharedGlobals$adjm[,])
-   myRows <- 
-      parallel::splitIndices(n,myGlobals$info$nThreads)[[myGlobals$myID+1]]
-   mySubmatrix <- sharedGlobals$adjm[myRows,]
 
-   # find "dead ends," vertices to lead nowhere
-   tmp <- rowSums(sharedGlobals$adjm[,])
-   deadEnds <- which(tmp == 0)
-   sharedGlobals$done[deadEnds,1] <- 1
-   sharedGlobals$done[deadEnds,2] <- 2
-   # and don't need a path from destVertex to itself
-   sharedGlobals$done[destVertex,] <- c(1,2)
-   deadEndsPlusDV <- c(deadEnds,destVertex)
+   # for brevity, make copies of some shared objects; since they are
+   # references, writing to the copy will make the same change to the
+   # original
+   nThreads <- sharedGlobals$nThreads
+   nDone <- sharedGlobals$nDone
+   done <- sharedGlobals$done
 
-   imDone <- FALSE
+   # each thread will work on its assigned group of threads
+   myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
+   myRows <- setdiff(myRows,destVertex)
+   mySubmatrix <- adjm[myRows,]
+
+   # find "dead ends," vertices that lead nowhere but to themselves; also
+   # known as "absorbing states," as in Markov chain terminology); we
+   # should avoid checking their corresponding rows during the iteration
+   # to find shortest paths
+   deadEnds <- rep(0,n)  # value 1 means yes, a dead end for (i in 1:n)
+   for (i in 1:n) {
+      if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1 
+   }
+   deadEnds[destVertex] <- 1
+   whichDEs <- which(deadEnds==1)
+   nDEs <- sum(deadEnds)
+   if (nDEs > 0) {
+      done[whichDEs,1] <- 1
+      done[whichDEs,2] <- 2
+   }
+   
+   # now iterate over powers of the adjacency matrix, thus generating
+   # all possible paths; iteration i generates all paths of length i,
+   # meaning i jumps, and thus i+1 vertices counting the vertex of
+   # origin; since we assume an acyclic graph, the max path length
+   # not counting the origin is n-1, thus iterations go only through
+   # n-1, not n
    for (iter in 1:(n-1)) {
-      rthreadsBarrier()
-      if (sharedGlobals$NDone[1,1] == myGlobals$info$nThreads) return()
-      if (iter > 1 && (iter <= n-1))
-         sharedGlobals$adjmPow[myRows,] <- 
-            sharedGlobals$adjmPow[myRows,] %*% sharedGlobals$adjm[,]
-      if (!imDone) {
-         for (myRow in setdiff(myRows,deadEndsPlusDV)) {
-            if (sharedGlobals$done[myRow,1] == 0) {  
-               # this vertex myRow not decided yet
-               if (sharedGlobals$adjmPow[myRow,destVertex] > 0) {
-                  sharedGlobals$done[myRow,1] <- iter
-                  sharedGlobals$done[myRow,2] <- 1
-               } else {
-                  currDests <- which(sharedGlobals$adjmPow[myRow,] > 0)
-                  # check subset
-                  currDestsEmpty <- (length(currDests) == 0)
-                  if (currDestsEmpty ||
-                      !currDestsEmpty &&
-                         identical(intersect(currDests,deadEnds),currDests))  {
-                     sharedGlobals$done[myRow,1] <- iter
-                     sharedGlobals$done[myRow,2] <- 2
-                  }
-               }
+      if (nDone[1,1] == nThreads[1,1]) break
+      if (iter > 1) adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
+      for (myRow in myRows) {
+         if (done[myRow,1] > 0) next 
+         # this vertex myRow not decided yet as to a path to destVertex
+         if (adjmPow[myRow,destVertex] > 0) {  # success!
+            done[myRow,1] <- iter
+            done[myRow,2] <- 1
+         } else {
+            currDests <- which(adjmPow[myRow,] > 0)
+            # can only go to dead ends from here?
+            if (identical(intersect(currDests,whichDEs),currDests))  {
+               done[myRow,1] <- iter
+               done[myRow,2] <- 2
             }
          }
-         if (sum(sharedGlobals$done[myRows,1] == 0) == 0) {
-            imDone <- TRUE
-            rthreadsAtomicInc('NDone')
-         }
+      }
+
+      # the 'done' matrix was initialized to all 0s; if 
+      # for some i in myRows we have done[i,1] == 0, that means we
+      # have no yet completed analysis of paths from vertex i
+      if (all(done[myRows,1] > 0)) {
+         rthreadsAtomicInc('nDone')
+         break
       }
    }
 
+   rthreadsBarrier()
+
 }
 ```
 
-As a test run, do
+As a test run, first do
 
 ``` r
-data(svcensus)
-svc <- regtools::factorsToDummies(svcensus,omitLast=TRUE,dfOut=TRUE)
-setup(svc,4)
+setup()
 ```
 
-in the first window.  This generates a DAG for our test, and specifies
-that we are interested in vertex 4 as the destination, i.e. "B.".  Then
-run
+in the first window, and then  
 
 ``` r
-findMinDists()
+adjMat <- rbind(
+             c(0,1,1,0,0),
+             c(0,1,0,0,0),
+             c(0,1,0,1,1),
+             c(1,0,0,0,1),
+             c(0,0,0,0,1))
+findMinDists(adjMat,5)
+
 ```
 
-in all windows. Inspect **sharedGlobals$done[,]** to check the results; see
-description of that matrix below.
+in all windows. Check the output by running
+
+``` r
+rthreadsSGget('done')
+```
+
+in some window.  Column 2 of row i is 1 or 2, depending on whether a
+path exists from # vertex i to the destination vertex (column 1 gives
+the corresponding path length.
+
+How does it work?
 
 A key property is that the k-th power of M tells us whether there is a
 k-link path from i to j, according to whether the row i, column j
@@ -444,75 +472,42 @@ element in the power is nonzero. The matrix powers are computed in
 parallel, with each thread being responsible for a subset of rows:
 
 ``` r
-n <- nrow(sharedGlobals$adjm[,])
-myRows <- 
-   parallel::splitIndices(n,myGlobals$info$nThreads)[[myGlobals$myID+1]]
-mySubmatrix <- sharedGlobals$adjm[myRows,]
+myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
+myRows <- setdiff(myRows,destVertex)
+mySubmatrix <- adjm[myRows,]
+...
+if (iter > 1) adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
 ```
-
-If say the matrix has 100 rows and we have 2 threads, the first thread
-will assign itself rows 1 to 50, and the second will handle rows 51 to
-100.
 
 Here we have used the fact that in a matrix product W = UV, row i of W
 is equal to the product of row i of U with V.
 
-As noted, we will find the shortest distance from all vertices A to a
-given destination B, which is **destVertex** in the code. We will store
-results in the shared matrix **done**, and in fact that object will
-contain the final results in the end. If row i in **done** has value
-(r,s), it means that in iteration r our search for paths from i to the
-destination ended. If s = 1, that means the destination
-was reached in a path of r links; if s = 2, it is impossible to get from
-i to the destination.
-
-Since we assume the graph is *acyclic*, any path can be of length at
-most **n-1** links, and typically will be shorter. Not only might a path reach
-the destination with fewer links, but also a path might end at an
-*absorbing vertex*, one with no outgoing links. We refer to them as
-"dead ends" in the code.
-
-Taking all this into account, we see that even though our **for**
-loop has a nominal number of iterations **n-1**, we often will exit the
-loop well before that.
-
 Here is where the main work is done:
 
 ``` r
-for (myRow in setdiff(myRows,deadEndsPlusDV)) {
-   if (sharedGlobals$done[myRow,1] == 0) {  
-      # this vertex myRow not decided yet
-      if (sharedGlobals$adjmPow[myRow,destVertex] > 0) {
-         sharedGlobals$done[myRow,1] <- iter
-         sharedGlobals$done[myRow,2] <- 1
-      } else {
-         currDests <- which(sharedGlobals$adjmPow[myRow,] > 0)
-         # check subset
-         currDestsEmpty <- (length(currDests) == 0)
-         if (currDestsEmpty ||
-             !currDestsEmpty &&
-                identical(intersect(currDests,deadEnds),currDests))  {
-            sharedGlobals$done[myRow,1] <- iter
-            sharedGlobals$done[myRow,2] <- 2
-         }
-      }
-   }
-}
+for (myRow in myRows) {
+   if (done[myRow,1] > 0) next 
+   # this vertex myRow not decided yet as to a path to destVertex
+   if (adjmPow[myRow,destVertex] > 0) {  # success!
+      done[myRow,1] <- iter
+      done[myRow,2] <- 1
+   } else {
+      ...
 ```
 
-Here we exclude the dead ends, and also the destination vertex. 
+This type of application, in which the threads do not interact with each
+other--no barriers, no autoincrement etc.--is often called
+*embarrassingly parallel*, alluding to the fact it is so easy to code.
+That is not quite the case here, though, because the code also makes use
+of "dead ends," vertices that lead only to themselves. This is simple in
+concept but involves keeping track of various edge cases.
 
-The "if" section here is straightforward; if we find that on this
-iteration there is at least some path, of those traversed so far, to the
-destination, we update **done** accordingly.
+**Extension:** A less "embarrassing" and more efficient extension would
+be to make the set **whichDEs**, the dead ends, dynamic rather than
+static. In the above code, we determine that set only once, before
+entering the main loop. It stays constant 
 
-The "else" part looks at the nonzero elements of the power matrix in the
-current iteration. These tell us all the vertices at which we could be
-after hopping this number of links. The question is then, are all such
-vertices dead ends? If so, we've found that it is impossible to reach
-the destination from vertex **myRow**, and we update **done** accordingly.
-
-# Example 3: Missing value imputation
+# Example: Missing value imputation
 
 Here the application is imputation of NAs in a large dataset. Note that
 I've kept it simple, so as to best illustrate the parallelization
