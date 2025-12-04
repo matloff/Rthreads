@@ -1,24 +1,35 @@
 
-# threads configuration: run
-#    rthreadsSetup(nThreads=2)
-
 # NA imputation, simple use of linear regression, each column's NAs
 # replaced by fitted values
 
 # note that NA elements imputed in one column will be used as inputs to
-# imputation in later columns (after the curren "round"; see below)
+# imputation in later columns 
 
 # mainly for illustrating barriers; could be made faster in various ways
 
-# for more of a computational-time challenge, try say k-NN instead of
-# linear regresion
+# example
+#
+#    at thread 0 do
+#       data(NHISlarge)
+#       nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
+#       nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
+#       setup(nhis.large)
+#
+#    at all threads do
+#       doImputation()
+#
+#    at any thread do
+#       dta <- rthreadsSGget('dta')
+#       head(dta)
+#
+#    at thread 0 do
+#       head(nhis.large)
+#
+#    notice imputed NAs
 
-setup <- function()  # run in thread 0
+setup <- function(dta)  # run in thread 0
 {
-   data(NHISlarge)
-   nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
-   nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
-   z <- dim(nhis.large)
+   z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
    rthreadsMakeSharedVar('dta',nr,nc,initVal=nhis.large)
@@ -30,35 +41,33 @@ doImputation <- function()
    if (myGlobals$myID > 0) {
       rthreadsAttachSharedVar('dta')
    }
+   nThreads <- sharedGlobals$nThreads[1,1]
+   dta <- sharedGlobals$dta
    nc <- ncol(dta)
-   nThreads <- info$nThreads
+   if (nThreads > nc) stop('more threads than columns')
 
    # in each round, each thread works on one column; they then update
-   # the data
+   # their columns
    nRounds <- ceiling(nc/nThreads)
    numPerRound <- floor(nc/nRounds)
    for (i in 1:nRounds) {
-
       myColNum <- (i-1)*numPerRound + myGlobals$myID + 1
-   
       # impute this column, if needed
       myImputes <- NULL
       if (myColNum <= nc) {
-         print(myColNum)
          NAelements <- which(is.na(dta[,myColNum]))
          if (length(NAelements) > 0) {
             lmOut <- lm(dta[,myColNum] ~ dta[,-myColNum])
-            # note: if a row has more than 1 NA, imputed value 
-            # will still be NA
             imputes <- lmOut$fitted.values[NAelements]
+            # note: if a row in dta[,-myColNum] has more than 1 NA,
+            # its predicted (and thus imputed)  value will still be NA
             myImputes <- 
                list(colNum=myColNum,imputes=imputes,NAelements=NAelements)
          }
       }
 
-      # update data, where needed
+      # round complete, update data
       rthreadsBarrier()  # can't change dta while possbily still in use
-
       if (!is.null(myImputes)) {
          colNum <- myImputes$colNum
          NAelements <- myImputes$NAelements
@@ -66,8 +75,9 @@ doImputation <- function()
          dta[NAelements,colNum] <- imputes
       }
 
-      rthreadsBarrier()  # some threads may still be writing to dta
-
+      # some threads may still be writing to dta, can't start next round
+      # until everyone is done
+      rthreadsBarrier()  
    }
 
 }
