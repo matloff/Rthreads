@@ -331,41 +331,46 @@ its imputed values rather than immediately writing them back
 to the dataset. Only after all threads have computed imputations in the
 given round do we update the actual dataset. 
 
-Since we are working column by column, this means earlier imputations
-can be employed in the regression actions of later columns, hopefully
-improving imputation accuracy. (Again, this may or may not be the case,
-but that is the motivation behind this imputation algorithm.) 
-
 The purpose of this example is mainly to illustrate the concept of a
 *barrier*, an important threads concept. When a thread reaches that
 line, it may not proceed further until *all* threads have reached the
-line. Why is this needed here? Actually, we don't need it in this
-particular case, but I've included it to explain the barrier concept, as
-follows.
+line. As noted in the code comments, we need a situation in which
+one thread changes **dta** while other threads are still making use of
+the original version.
 
 Here is the code:
 
 ``` r
-# threads configuration: run
-#    rthreadsSetup(nThreads=2)
-
 # NA imputation, simple use of linear regression, each column's NAs
 # replaced by fitted values
 
-# note that NA elements imputed in one column will be used as inputs to
-# imputation in later columns (after the curren "round"; see below)
+# mainly for illustrating barriers
 
-# mainly for illustrating barriers; could be made faster in various ways
+# example
 
-# for more of a computational-time challenge, try say k-NN instead of
-# linear regresion
+#  at thread 0 do
+#  
+#     data(NHISlarge)
+#     nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
+#     nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
+#     setup(nhis.large)
+#  
+#  at all threads do
+#  
+#     doImputation()
+#  
+#  at any thread do
+#  
+#     dta <- rthreadsSGget('dta')
+#     head(dta)
+#  
+#  at some other thread do
+#  
+#     head(nhis.large)
 
-setup <- function()  # run in "manager thread"
+setup <- function(dta)  # run in thread 0
 {
-   data(NHISlarge)
-   nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
-   nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
-   z <- dim(nhis.large)
+   z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
    rthreadsMakeSharedVar('dta',nr,nc,initVal=nhis.large)
@@ -377,118 +382,46 @@ doImputation <- function()
    if (myGlobals$myID > 0) {
       rthreadsAttachSharedVar('dta')
    }
-   nc <- ncol(sharedGlobals$dta)
-   nThreads <- myGlobals$info$nThreads
+   nThreads <- sharedGlobals$nThreads[1,1]
+   dta <- sharedGlobals$dta
+   myID <- myGlobals$myID
+   nc <- ncol(dta)
 
-   # in each round, each thread works on one column; they then update
-   # the data
-   nRounds <- ceiling(nc/myGlobals$info$nThreads)
-   numPerRound <- floor(nc/nRounds)
-   for (i in 1:nRounds) {
+   # each thread is assigned columns to work on
+   myCols <- parallel::splitIndices(nc,nThreads)[[myID+1]]
 
-      myColNum <- (i-1)*numPerRound + myGlobals$myID + 1
-   
+   myImputes <- NULL
+   for (col in myCols) {
       # impute this column, if needed
-      myImputes <- NULL
-      if (myColNum <= nc) {
-         print(myColNum)
-         NAelements <- which(is.na(sharedGlobals$dta[,myColNum]))
-         if (length(NAelements) > 0) {
-            lmOut <- 
-               lm(sharedGlobals$dta[,myColNum] ~ sharedGlobals$dta[,-myColNum])
-            # note: if a row has more than 1 NA, imputed value 
-            # will still be NA
-            imputes <- lmOut$fitted.values[NAelements]
-            myImputes <- 
-               list(colNum=myColNum,imputes=imputes,NAelements=NAelements)
-         }
+      NAelements <- which(is.na(dta[,col]))
+      if (length(NAelements) > 0) {
+         lmOut <- lm(dta[,col] ~ dta[,-col])
+         imputes <- lmOut$fitted.values[NAelements]
+         # note: if a row in dta[,-col] has more than 1 NA,
+         # its predicted (and thus imputed)  value will still be NA
+         tmp <- 
+            list(colNum=col,imputes=imputes,NAelements=NAelements)
+      } else tmp <- NULL
+      myImputes[[col]] <- tmp
+
+   }
+
+   # impute data
+   rthreadsBarrier()  # can't change dta while possbily still in use
+   for (col in myCols) {
+      myimps <- myImputes[[col]]
+      if (!is.null(myimps)) {
+        NAelements <- myimps$NAelements
+        imputes <- myimps$imputes
+        dta[NAelements,col] <- imputes
       }
-
-      # update data, where needed
-      rthreadsBarrier()  # can't change dta while possbily still in use
-
-      if (!is.null(myImputes)) {
-         colNum <- myImputes$colNum
-         NAelements <- myImputes$NAelements
-         imputes <- myImputes$imputes
-         sharedGlobals$dta[NAelements,colNum] <- imputes
-      }
-
-      rthreadsBarrier()  # some threads may still be writing to dta
-
    }
 
 }
+
 ```
 
-To run the code, first run **setup** in one window, then **doImputation**
-in all windows. The shared object **sharedGlobals$dta** contains the dataset
-throughout the code, and upon completion the
-imputed dataset will there.
-
-Work is done on groups of columns, called "rounds" here.
-
-``` r
-nc <- ncol(sharedGlobals$dta)
-nThreads <- myGlobals$info$nThreads
-
-# in each round, each thread works on one column; they then update
-# the data
-nRounds <- ceiling(nc/myGlobals$info$nThreads)
-numPerRound <- floor(nc/nRounds)
-for (i in 1:nRounds) {
-```
-
-Within a round, each thread checks its assigned column for NAs, and
-performs the imputation (if any) in **myImputes**:
-
-``` r
-myImputes <- NULL
-if (myColNum <= nc) {
-   print(myColNum)
-   NAelements <- which(is.na(sharedGlobals$dta[,myColNum]))
-   if (length(NAelements) > 0) {
-      lmOut <- 
-         lm(sharedGlobals$dta[,myColNum] ~ sharedGlobals$dta[,-myColNum])
-      # note: if a row has more than 1 NA, imputed value 
-      # will still be NA
-      imputes <- lmOut$fitted.values[NAelements]
-      myImputes <- 
-         list(colNum=myColNum,imputes=imputes,NAelements=NAelements)
-   }
-}
-```
-
-At the end of a round, each thread will update the dataset with the
-imputations it found. However, it must first make sure all threads are
-done with their imputation processes; otherwise, this thread might write
-to the dataset while another thread is still using the old version of the
-dataset. This is accomplished by the barrier operation:
-
-``` r
-      myImputes <- 
-         list(colNum=myColNum,imputes=imputes,NAelements=NAelements)
-   }
-}
-
-# update data, where needed
-rthreadsBarrier()  # can't change dta while possbily still in use
-```
-
-Similarly, after performing the update and going on to the next round,
-we must first make sure all threads are done with their update operations,
-thus another barrier:
-
-``` r
-if (!is.null(myImputes)) {
-   colNum <- myImputes$colNum
-   NAelements <- myImputes$NAelements
-   imputes <- myImputes$imputes
-   sharedGlobals$dta[NAelements,colNum] <- imputes
-}
-
-rthreadsBarrier()  
-```
+An example and directions for running it are given in the code comments.
  
 # Example: Shortest paths in a graph
 
@@ -506,30 +439,30 @@ depending on whether there is a link from i to j. We also assume the
 matrix is a *directed acylic graph* (DAG), meaning that any path leading
 out of vertex i cannot return to i.
 
-Here is the code:
+In this version, we find the lengths of the shortest paths from all
+vertices to a given one. We do not find the paths themselves.  Here is
+the code:
 
 ``` r
 # to run the code after launching Rthreads, first run setup() at thread
 # 0, then findMinDists() at all nodes
 
-# NOTE: if rerun findMinDists(), must rerun status() first
+# NOTE: if rerun findMinDists(), say with different arguments, must
+# rerun status() first
 
 # example:
 
 # adjMat <- rbind(
 #              c(0,1,1,0,0),
-#              c(0,1,0,0,0),
+#              c(0,0,0,1,0),
 #              c(0,1,0,1,1),
 #              c(1,0,0,0,1),
-#              c(0,0,0,0,1))
+#              c(0,0,1,0,0))
 # setup()
 # findMinDists(adjMat,5)
 
 # check output:
 # rthreadsSGget('done')
-# column 2 of row i is 1 or 2, depending on whether a path exists from
-# vertex i to the destination vertex (column 1 gives the corresponding
-# path length)
 
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
@@ -541,9 +474,7 @@ Here is the code:
 # matrices
 
 # illustrative value of the code is as an example of "embarrassing
-# parallel" computation; some extra (nonparallel) speedup is obtained
-# via use of "dead ends" to reduce workload (at the cost of considerable
-# edge-case checking)
+# parallel" computation
 
 setup <- function()  # run in thread 0
 {
@@ -559,7 +490,7 @@ findMinDists <- function(adjMat,destVertex)
 
    myID <- myGlobals$myID
    if (myID == 0) 
-      rthreadsMakeSharedVar('done',n,2,initVal=rep(0,2*n))  # see above
+      rthreadsMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
    rthreadsBarrier()
    if (myID > 0) {
       rthreadsAttachSharedVar('done')
@@ -573,26 +504,8 @@ findMinDists <- function(adjMat,destVertex)
    nDone <- sharedGlobals$nDone
    done <- sharedGlobals$done
 
-   # find "dead ends," vertices that lead nowhere but to themselves; also
-   # known as "absorbing states," as in Markov chain terminology); we
-   # should avoid checking their corresponding rows during the iteration
-   # to find shortest paths
-   deadEnds <- rep(0,n)  # value 1 means yes, a dead end for (i in 1:n)
-   for (i in 1:n) {
-      if (adjm[i,i] == 1 && sum(adjm[i,]) == 1) deadEnds[i] <- 1 
-   }
-   deadEnds[destVertex] <- 1
-   whichDEs <- which(deadEnds==1)
-   nDEs <- sum(deadEnds)
-   if (nDEs > 0) {
-      done[whichDEs,1] <- 1
-      done[whichDEs,2] <- 2
-   }
-
    # each thread will work on its assigned group of threads
    myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
-   myRows <- setdiff(myRows,whichDEs)
-   mySubmatrix <- adjm[myRows,]
    
    # now iterate over powers of the adjacency matrix, thus generating
    # all possible paths; iteration i generates all paths of length i,
@@ -608,15 +521,7 @@ findMinDists <- function(adjMat,destVertex)
          # this vertex myRow not decided yet as to a path to destVertex
          if (adjmPow[myRow,destVertex] > 0) {  # success!
             done[myRow,1] <- iter
-            done[myRow,2] <- 1
-         } else {
-            currDests <- which(adjmPow[myRow,] > 0)
-            # can only go to dead ends from here?
-            if (identical(intersect(currDests,whichDEs),currDests))  {
-               done[myRow,1] <- iter
-               done[myRow,2] <- 2
-            }
-         }
+         } 
       }
 
       # the 'done' matrix was initialized to all 0s; if 
@@ -629,38 +534,9 @@ findMinDists <- function(adjMat,destVertex)
    }
 
    rthreadsBarrier()
-
 }
-```
-
-As a test run, first do
-
-``` r
-setup()
-```
-
-in the first window, and then  
-
-``` r
-adjMat <- rbind(
-             c(0,1,1,0,0),
-             c(0,1,0,0,0),
-             c(0,1,0,1,1),
-             c(1,0,0,0,1),
-             c(0,0,0,0,1))
-findMinDists(adjMat,5)
 
 ```
-
-in all windows. Check the output by running
-
-``` r
-rthreadsSGget('done')
-```
-
-in some window.  The shared matrix **done** has Column 2 of row i equal
-to 1 or 2, depending on whether a path exists from vertex i to the
-destination vertex (column 1 gives the corresponding path length.
 
 How does it work?
 
@@ -672,7 +548,6 @@ parallel, with each thread being responsible for a subset of rows:
 ``` r
 myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
 myRows <- setdiff(myRows,whichDEs)
-mySubmatrix <- adjm[myRows,]
 ...
 if (iter > 1) adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
 ```

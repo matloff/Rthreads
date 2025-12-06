@@ -61,7 +61,6 @@ findMinDists <- function(adjMat,destVertex)
 
    # each thread will work on its assigned group of threads
    myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
-   mySubmatrix <- adjm[myRows,]
    
    # now iterate over powers of the adjacency matrix, thus generating
    # all possible paths; iteration i generates all paths of length i,
