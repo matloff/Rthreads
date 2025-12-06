@@ -571,9 +571,6 @@ for (myRow in myRows) {
 This type of application, in which the threads do not interact with each
 other--no barriers, no autoincrement etc.--is often called
 *embarrassingly parallel*, alluding to the fact it is so easy to code.
-That is not quite the case here, though, because the code also makes use
-of "dead ends," vertices that lead only to themselves. This is simple in
-concept but involves keeping track of various edge cases.
 
 # Regarding Repeat Runs
 
