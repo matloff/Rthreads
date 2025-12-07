@@ -1,23 +1,30 @@
 
-############# under construction ************
 
 # code to automate setup and use of Rthreads, using the R 'parallel' pkg
+# and the Unix 'tmux' utility
+
+# once Rthreads is running in the windows, one can continue to run
+# commands in them via tmSendKeys, or by manually typing into the
+# windows
+
+# NOTE: to end the tmux session, do not just kill the windows; do
+#
+#    tmux kill-session -t abc
+#
+# from any shell window, or call tmQuit from R
 
 # user first does:
 # 
-# open a terminal window
+#    open a terminal window
 # 
-# tmux new -s abc
-# 
-# hit ctrl-b c k-1 times for k-1 new tmux windows, k = number of threads
+#    tmux new -s abc
+#
+# (or any name instead of 'abc')
+#
+# then from R running in another window, call the functions below as
+# needed
 
-tmGetNWindows <- function(tmName='abc') 
-{
-   cmd <- paste0("tmux list-windows -t ",tmName," | wc -l")
-   cmdOut <- system(cmd,intern=TRUE)
-   as.numeric(cmdOut)
-}
-
+# send 'msg' to windows listed in 'recip'
 tmSendKeys <- function(tmName,msg,recip='all')
 {
    nw <- tmGetNWindows(tmName)
@@ -29,14 +36,45 @@ tmSendKeys <- function(tmName,msg,recip='all')
    }
 }
 
-# start tmux, nWindows windows, run R in each
+# creates nWindows-1 additional windows, runs R in the new ones and
+# Rthreads in each of the nWindows windows; assumes we had already
+# started tmux from this shell window, and are now running  R in it
+
 tmRthreadsInit <- function(nWindows,tmName='abc') 
 {
+   for (i in 1:(nWindows-1)) system('tmux new-window')
    tmSendKeys(tmName,'R')
    tmSendKeys(tmName,'library(Rthreads)')
    setupCall <- paste0('rthreadsSetup(',nWindows,')')
    tmSendKeys(tmName,setupCall,0)
    checkinCall <- 'rthreadsJoin()'
    tmSendKeys(tmName,checkinCall)
+}
+
+# go to next window; or manually via ctrl-b n
+tmNxt <- function() system('tmux next-window')
+
+# go to previous window; or manually via ctrl-b p
+tmPrv <- function()  system('tmux previous-window')
+
+# go to window k; or manually via ctrl-b k
+tmWinK <- function(k)  
+{
+   cmd <- paste0('tmux select-window -t ',k)
+   system(cmd)
+}
+
+tmQuit <- function(tmName='abc')
+{
+   cmd <- paste0('tmux kill-session -t ',tmName)
+   system(cmd)
+}
+ 
+# get number of windows
+tmGetNWindows <- function(tmName='abc') 
+{
+   cmd <- paste0("tmux list-windows -t ",tmName," | wc -l")
+   cmdOut <- system(cmd,intern=TRUE)
+   as.numeric(cmdOut)
 }
 
