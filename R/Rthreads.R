@@ -4,7 +4,7 @@ library(synchronicity)
 
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
-topDir <- getwd()
+topDir <- '/tmp'
 dir.create('descFiles')
 
 # executed only by thread 0
