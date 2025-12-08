@@ -7,22 +7,29 @@
 # commands in them via tmSendKeys, or by manually typing into the
 # windows
 
+# IDEs (Positron, VS Code etc.) are not suitable for parallel
+# computation; everything here is based on terminal windows
+
+# user first does:
+#
+# 1. Open a terminal window (the "control window"). Start R in it, and
+# load Rthreads.
+# 
+# 2. Open a terminal window (the "computation window"), and type
+# 
+#    tmux new -s abc
+#
+# (or any name instead of 'abc') into the shell.
+#
+# 3. Call tmRthreadsInit from the control window
+#
+# 4. Done!  Call the functions below as needed.
+
 # NOTE: to end the tmux session, do not just kill the windows; do
 #
 #    tmux kill-session -t abc
 #
 # from any shell window, or call tmQuit from R
-
-# user first does:
-# 
-#    open a terminal window
-# 
-#    tmux new -s abc
-#
-# (or any name instead of 'abc')
-#
-# then from R running in another window, call the functions below as
-# needed
 
 # send 'msg' to windows listed in 'recip'
 tmSendKeys <- function(tmName,msg,recip='all')
