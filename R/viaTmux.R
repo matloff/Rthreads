@@ -17,13 +17,14 @@
 # 
 # 2. Open a terminal window (the "computation window"), and type
 # 
-#    tmux new -s abc
+#       tmux new -s abc
 #
 # (or any name instead of 'abc') into the shell.
 #
-# 3. Call tmRthreadsInit from the control window
+# 3. Call tmRthreadsInit from the control window, specifying the desired
+# number of threads.
 #
-# 4. Done!  Call the functions below as needed.
+# 4. Done!  Call the functions below from the control window as needed.
 
 # NOTE: to end the tmux session, do not just kill the windows; do
 #

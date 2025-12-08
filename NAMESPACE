@@ -5,6 +5,7 @@ export(rthreadsSetup,rthreadsJoin,rthreadsAtomicInc,rthreadsAttachMutex,
    rthreadsAttachSharedVar,rthreadsMakeMutex,rthreadsMakeSharedVar,
    rthreadsWaitDone,rthreadsMakeBarrier,rthreadsInitBarrier,rthreadsBarrier,
    rthreadsSGset,rthreadsSGget,topDir,myGlobals,sharedGlobals,
+   tmSendKeys,tmRthreadsInit,tmNxt,tmPrv,tmWinK,tmQuit,tmGetNWindows,
    quickstart)
 
 importFrom("utils", "browseURL")
