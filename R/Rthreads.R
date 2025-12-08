@@ -5,11 +5,11 @@ library(synchronicity)
 myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
 topDir <- '/tmp'
-dir.create('descFiles')
+# dir.create('descFiles')
 
 # executed only by thread 0
 # both sharedVars and nonsharedVars are R lists
-rthreadsSetup <- function(nThreads) 
+rthreadsSetup <- function(nThreads,descFileDir='/tmp') 
 { 
 
    # set up myGlobals
