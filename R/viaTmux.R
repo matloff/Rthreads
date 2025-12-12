@@ -39,7 +39,7 @@ tmSendKeys <- function(tmName,msg,recip='all')
    if (recip == 'all') recip <- 0:(nw-1)
    for (i in recip) {
       dst <- paste0(tmName,":",i)
-      cmd <- paste0("tmux send-keys -t ",dst,' ','\"',msg,'\"',"  C-m")
+      cmd <- paste0("tmux send-keys -t ",dst,' ','"',msg,'"',"  C-m")
       system(cmd)
    }
 }
@@ -84,5 +84,11 @@ tmGetNWindows <- function(tmName='abc')
    cmd <- paste0("tmux list-windows -t ",tmName," | wc -l")
    cmdOut <- system(cmd,intern=TRUE)
    as.numeric(cmdOut)
+}
+
+rthreadsSrcExamples <- function(exName)
+{
+   fl <- system.file('examples',exName,package='Rthreads')
+   source(fl)
 }
 

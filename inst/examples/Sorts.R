@@ -11,7 +11,7 @@
 setup <- function(vecLengths=1000)  # run in thread 0
 {
    rthreadsMakeSharedVar('nextRowNum',1,1)
-   rthreadsMakeSharedVar('m',10,vecLengths+1)
+   rthreadsMakeSharedVar('m',10,vecLengths+1,NA)
    # generate vectors to be sorted, of different sizes
    tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)

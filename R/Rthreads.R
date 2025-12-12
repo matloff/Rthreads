@@ -9,7 +9,7 @@ topDir <- '/tmp'
 
 # executed only by thread 0
 # both sharedVars and nonsharedVars are R lists
-rthreadsSetup <- function(nThreads,descFileDir='/tmp') 
+rthreadsSetup <- function(nThreads) 
 { 
 
    # set up myGlobals
@@ -65,7 +65,8 @@ rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
 rthreadsMakeBarrier <- function()
 {
    rthreadsMakeMutex('barrMutex0')
-   rthreadsMakeSharedVar('barrier0',1,2,initVal=c(sharedGlobals$nThreads[1,1],0))
+   rthreadsMakeSharedVar('barrier0',1,2,
+      initVal=c(sharedGlobals$nThreads[1,1],0))
 }
 
 rthreadsInitBarrier <- function() 
