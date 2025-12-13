@@ -153,8 +153,8 @@ rthreadsSGget <-
    tmp <- paste0('sharedGlobals$',sharedVarName)
    sv <- evalr(tmp)
    if (pointerOnly) return(sv)
-   if (rows == 'all') rows <- 1:nrow(sv)
-   if (cols == 'all') cols <- 1:ncol(sv)
+   if (identical(rows,'all')) rows <- 1:nrow(sv)
+   if (identical(cols,'all')) cols <- 1:ncol(sv)
    sv[rows,cols]
 }
 
