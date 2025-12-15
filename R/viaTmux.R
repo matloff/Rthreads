@@ -36,10 +36,10 @@
 tmSendKeys <- function(tmName,msg,recip='all')
 {
    nw <- tmGetNWindows(tmName)
-   if (recip == 'all') recip <- 0:(nw-1)
+   if (identical(recip,'all')) recip <- 0:(nw-1)
    for (i in recip) {
       dst <- paste0(tmName,":",i)
-      cmd <- paste0("tmux send-keys -t ",dst,' ','"',msg,'"',"  C-m")
+      cmd <- paste0("tmux send-keys -t ",dst,' ',"'",msg,"'","  C-m")
       system(cmd)
    }
 }

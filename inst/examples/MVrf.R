@@ -26,7 +26,7 @@
 #  
 #     head(nhis.large)
 
-# library(qeML)
+library(ranger)
 
 setup <- function(dta)  # run in thread 0
 {
