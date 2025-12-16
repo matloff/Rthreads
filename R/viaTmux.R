@@ -86,9 +86,12 @@ tmGetNWindows <- function(tmName='abc')
    as.numeric(cmdOut)
 }
 
-rthreadsSrcExamples <- function(exName)
+# reduces the current number of threads by the specified amount; to
+# increase the number of threads, essentially start over, by exiting R
+# in each thread, and then calling rthreadsSetup
+tmReduceNThreads <- function(nRemove) 
 {
-   fl <- system.file('examples',exName,package='Rthreads')
-   source(fl)
+   nthreads <- rthreadsSGget('nThreads')[1,1]
+   toRemove <- (nthreads-nRemove):(nthreads-1)
 }
 

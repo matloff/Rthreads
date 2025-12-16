@@ -180,6 +180,12 @@ rthreadsDoCmds <- function()
    }
 }
 
+rthreadsSrcExamples <- function(exName)
+{
+   fl <- system.file('examples',exName,package='Rthreads')
+   source(fl)
+}
+
 evalr <- function (toexec)
 {
     eval(parse(text = toexec), parent.frame())
