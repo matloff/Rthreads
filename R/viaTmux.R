@@ -86,14 +86,28 @@ tmGetNWindows <- function(tmName='abc')
    as.numeric(cmdOut)
 }
 
-# reduces the current number of threads by the specified amount; to
-# increase the number of threads, essentially start over, by exiting R
-# in each thread, and then calling rthreadsSetup
-tmReduceNThreads <- function(nRemove,tmName='abc') 
+# removes the specified current thread set, indexing starting at 0; e.g.
+# toRemove = 4:5 removes threads 4 and 5
+
+# assumes no code is currently active, e.g. no threads waiting in
+# barriers; user should ensure that all initializations, e.g. like the
+# 'setup' functions in 'Rthreads::examples', are redone
+
+# to increase the number of threads, essentially start over, by exiting
+# R in each thread, and then calling rthreadsSetup
+
+tmReduceNThreads <- function(toRemove,tmName='abc') 
 {
-   nthreads <- rthreadsSGget('nThreads')[1,1]
-   toRemove <- (nthreads-nRemove):(nthreads-1)
+   # update nThreads
+   tmp <- 'nthreads <- rthreadsSGget("nThreads",1,1)'
+   tmSendKeys(tmName,tmp)
+   nRemove <- length(toRemove)
+   tmp <- paste0('nremove <- ',sprintf('%d',nRemove))
+   tmSendKeys(tmName,tmp)
+   tmp <- 'newNthreads <- nthreads - nremove'
+   tmSendKeys(tmName,tmp)
+   tmSendKeys(tmName,'rthreadsSGset("nThreads",1,1,newNthreads)')
+   # remove the threads
    tmSendKeys(tmName,'quit(save="no")',toRemove)
-   sharedGlobals$nThreads[1,1] <- nthreads - nRemove
 }
 
