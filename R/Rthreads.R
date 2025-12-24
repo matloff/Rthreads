@@ -2,18 +2,19 @@
 library(bigmemory)
 library(synchronicity)
 
-myGlobals <- new.env(parent=emptyenv())
+### myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
 topDir <- '/tmp'
 # dir.create('descFiles')
 
 # executed only by thread 0
-# both sharedVars and nonsharedVars are R lists
 rthreadsSetup <- function(nThreads) 
 { 
 
-   # set up myGlobals
-   myGlobals$myID <- 0
+   ### set up myGlobals
+   ### myGlobals$myID <- 0
+   rthreadsMakeSharedVar('myIDs',nThreads,1,NA)
+   myIDs[1,1] <- Sys.getpid()
 
    # set up shared globals
    rthreadsMakeSharedVar('nThreads',1,1,nThreads)
@@ -28,13 +29,16 @@ rthreadsSetup <- function(nThreads)
 rthreadsJoin <- function() 
 {
    # check in and get my ID
-   zeroThread <- 'myID' %in% names(myGlobals)
-   if (!zeroThread) {
+   ### zeroThread <- 'myID' %in% names(myGlobals)
+   rthreadsAttachSharedVar('myIDs')  # dup for thread 0, but OK
+   myID <- rthreadsMyID() 
+   if (myID > 0) {
       rthreadsAttachSharedVar('nThreads')
       rthreadsAttachSharedVar('nJoined')
       rthreadsAttachMutex('mutex0')
       nj <- rthreadsAtomicInc('nJoined') 
-      myGlobals$myID <- nj
+      ### myGlobals$myID <- nj
+      myIDs[nj,1] <- Sys.getpid()
       rthreadsAttachSharedVar('nDone')
       rthreadsAttachSharedVar('barrier0')
       rthreadsAttachMutex('barrMutex0')
@@ -88,10 +92,19 @@ rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL)
    sharedGlobals[[varName]] <- tmp
 }
 
+# look up ID for this thread
+rthreadsMyID <- function() 
+{
+   tmp <- which(myIDs[,] == Sys.getpid())
+   if (length(tmp) == 0) stop('thread ID lookup failed')
+   tmp - 1
+}
+
 # make and attach shared variable, within the same code
 rthreadsMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL) 
 {
-   myid <- myGlobals$myID
+   ### myid <- myGlobals$myID
+   myID <- rthreadsMyID()
    if (myid == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
    rthreadsBarrier()
    if (myid > 0) rthreadsAttachSharedVar(varName)
@@ -158,7 +171,8 @@ rthreadsBarrier <- function()
 rthreadsSplit <- function(M,splitFactor,prefix='split') 
 {
    nthreads <- sharedGlobals$nThreads
-   myid <- myGlobals$myID
+   ### myid <- myGlobals$myID
+   myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
    ncolM <- ncol(M)
@@ -226,11 +240,11 @@ rthreadsSGget <-
    sv[rows,cols]
 }
 
-# print all of myGlobals
-rthreadsPrintMG <- function() 
-{
-   for(nm in names(myGlobals)) print(myGlobals[[nm]])
-}
+### # print all of myGlobals
+### rthreadsPrintMG <- function() 
+### {
+###    for(nm in names(myGlobals)) print(myGlobals[[nm]])
+### }
 
 # print all of sharedGlobals
 rthreadsPrintSG <- function() 
