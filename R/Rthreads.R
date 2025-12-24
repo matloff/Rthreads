@@ -2,19 +2,15 @@
 library(bigmemory)
 library(synchronicity)
 
-### myGlobals <- new.env(parent=emptyenv())
 sharedGlobals <- new.env(parent=emptyenv())
 topDir <- '/tmp'
-# dir.create('descFiles')
 
 # executed only by thread 0
 rthreadsSetup <- function(nThreads) 
 { 
 
-   ### set up myGlobals
-   ### myGlobals$myID <- 0
    rthreadsMakeSharedVar('myIDs',nThreads,1,NA)
-   myIDs[1,1] <- Sys.getpid()
+   sharedGlobals[['myIDs']][1,1] <- Sys.getpid()
 
    # set up shared globals
    rthreadsMakeSharedVar('nThreads',1,1,nThreads)
@@ -28,17 +24,15 @@ rthreadsSetup <- function(nThreads)
 # run by all threads, including 0
 rthreadsJoin <- function() 
 {
-   # check in and get my ID
-   ### zeroThread <- 'myID' %in% names(myGlobals)
-   rthreadsAttachSharedVar('myIDs')  # dup for thread 0, but OK
-   myID <- rthreadsMyID() 
-   if (myID > 0) {
+   # check in 
+   if (is.null(sharedGlobals$myIDs)) {  # not thread 0
       rthreadsAttachSharedVar('nThreads')
       rthreadsAttachSharedVar('nJoined')
       rthreadsAttachMutex('mutex0')
+      # get my thread ID
       nj <- rthreadsAtomicInc('nJoined') 
-      ### myGlobals$myID <- nj
-      myIDs[nj,1] <- Sys.getpid()
+      rthreadsAttachSharedVar('myIDs')  
+      sharedGlobals$myIDs[nj+1,1] <- Sys.getpid()
       rthreadsAttachSharedVar('nDone')
       rthreadsAttachSharedVar('barrier0')
       rthreadsAttachMutex('barrMutex0')
@@ -95,7 +89,7 @@ rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL)
 # look up ID for this thread
 rthreadsMyID <- function() 
 {
-   tmp <- which(myIDs[,] == Sys.getpid())
+   tmp <- which(sharedGlobals[['myIDs']][,] == Sys.getpid())
    if (length(tmp) == 0) stop('thread ID lookup failed')
    tmp - 1
 }
