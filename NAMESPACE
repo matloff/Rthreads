@@ -5,7 +5,7 @@ export(rthreadsSetup,rthreadsJoin,rthreadsAtomicInc,rthreadsAttachMutex,
    rthreadsAttachSharedVar,rthreadsMakeMutex,rthreadsMakeSharedVar,
    rthreadsWaitDone,rthreadsMakeBarrier,rthreadsInitBarrier,rthreadsBarrier,
    rthreadsSGset,rthreadsSGget,topDir,sharedGlobals,
-   rthreadsSrcExamples,
+   rthreadsSrcExamples,rthreadsSplit,
    tmSendKeys,tmRthreadsInit,tmNxt,tmPrv,tmWinK, tmQuit,tmGetNWindows,
    tmReduceNThreads,
    quickstart)

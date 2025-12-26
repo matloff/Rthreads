@@ -56,7 +56,8 @@ tmRthreadsInit <- function(nWindows,tmName='abc')
    setupCall <- paste0('rthreadsSetup(',nWindows,')')
    tmSendKeys(tmName,setupCall,0)
    checkinCall <- 'rthreadsJoin()'
-   tmSendKeys(tmName,checkinCall)
+   tmSendKeys(tmName,checkinCall,0)
+   for (i in 1:(nWindows-1)) tmSendKeys(tmName,checkinCall,i)
 }
 
 # go to next window; or manually via ctrl-b n

@@ -211,6 +211,8 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
          outList[[k]] <- M[splitOut[[k]],]
       }
    }
+
+   outList
 }
 
 # utils to get around "hidden" namespace
