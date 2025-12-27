@@ -99,9 +99,9 @@ rthreadsMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL)
 {
    ### myid <- myGlobals$myID
    myID <- rthreadsMyID()
-   if (myid == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
+   if (myID == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
    rthreadsBarrier()
-   if (myid > 0) rthreadsAttachSharedVar(varName)
+   if (myID > 0) rthreadsAttachSharedVar(varName)
 }
 
 # create a mutex shareable across threads
@@ -153,10 +153,10 @@ rthreadsBarrier <- function()
    }
 }
 
-# analogous to R's 'split' function; inputs a shared matrix M, and
-# splits the rows according to the R factors splitFactor; returns an R
-# list of shared matrices (note that each is just a reference, thus
-# eligible as components of a list) 
+# analogous to R's 'split' function; inputs a shared matrix M (specified
+# as a quoted name), and splits the rows according to the R factors
+# splitFactor; returns an R list of shared matrices (note that each is
+# just a reference, thus eligible as components of a list) 
 
 # shared matrices must have names, which will be of the form
 # prefix.suffix, where suffix is the corresponding splitFactor levels
@@ -164,13 +164,14 @@ rthreadsBarrier <- function()
 
 rthreadsSplit <- function(M,splitFactor,prefix='split') 
 {
+   M <- get(M,envir=sharedGlobals)
    nthreads <- sharedGlobals$nThreads
    ### myid <- myGlobals$myID
    myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
    ncolM <- ncol(M)
-   myRows <- parallel::splitIndices(nrow(M),nthreads[,])[[myid+1]] 
+   myRows <- parallel::splitIndices(nrow(M),nthreads[,])[[myID+1]] 
 
    # this thread now calls a variant of standard R 'split', resulting in
    # an R list, 'splitOut', with one element per level of the factor;
