@@ -97,7 +97,6 @@ rthreadsMyID <- function()
 # make and attach shared variable, within the same code
 rthreadsMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL) 
 {
-   ### myid <- myGlobals$myID
    myID <- rthreadsMyID()
    if (myID == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
    rthreadsBarrier()
@@ -166,12 +165,11 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
 {
    M <- get(M,envir=sharedGlobals)
    nthreads <- sharedGlobals$nThreads
-   ### myid <- myGlobals$myID
    myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
    ncolM <- ncol(M)
-   myRows <- parallel::splitIndices(nrow(M),nthreads[,])[[myID+1]] 
+   myRows <- parallel::splitIndices(nrow(M),nthreads[1,1])[[myID+1]] 
 
    # this thread now calls a variant of standard R 'split', resulting in
    # an R list, 'splitOut', with one element per level of the factor;
@@ -181,7 +179,7 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    
    # partialCensus will be counts, by thread, of the number of data points
    # in myRows for each level of splitFactor
-   rthreadsMakeAttachSharedVar('partialCensus',nthreads,nlvls)
+   rthreadsMakeAttachSharedVar('partialCensus',nthreads[1,1],nLvls)
    partialCensus[myid+1,] <- sapply(splitOut,length)
    # note that no lock is needed above, as different threads write to 
    # different parts of partialCensus, and don't read other parts
