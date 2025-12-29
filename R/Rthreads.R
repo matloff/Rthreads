@@ -180,15 +180,15 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    # partialCensus will be counts, by thread, of the number of data points
    # in myRows for each level of splitFactor
    rthreadsMakeAttachSharedVar('partialCensus',nthreads[1,1],nLvls)
-   partialCensus[myid+1,] <- sapply(splitOut,length)
+   sharedGlobals$partialCensus[myid+1,] <- sapply(splitOut,length)
    # note that no lock is needed above, as different threads write to 
    # different parts of partialCensus, and don't read other parts
 
    rthreadsBarrier()
    # fullCensus is then shows the counts, NOT broken down by thread
    # cumsumCensus is then the cumulative sums version
-   fullCensus <- colSums(partialCensus[,])
-   cumsumCensus <- apply(partialCensus[,],2,cumsum)
+   fullCensus <- colSums(sharedGlobals$partialCensus[,])
+   cumsumCensus <- applysharedGlobals$(partialCensus[,],2,cumsum)
  
    # start building the output list; element i will be a shared matrix
    # consisting of the rows of M for which splitFactor has level i 
