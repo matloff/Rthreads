@@ -163,11 +163,13 @@ rthreadsBarrier <- function()
 
 rthreadsSplit <- function(M,splitFactor,prefix='split') 
 {
+
    M <- get(M,envir=sharedGlobals)
    nthreads <- sharedGlobals$nThreads
    myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
+   if (nLvls > nrow(M)) stop('too many levels')
    ncolM <- ncol(M)
    myRows <- parallel::splitIndices(nrow(M),nthreads[1,1])[[myID+1]] 
 
@@ -177,39 +179,48 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    # k of THIS factor
    splitOut <- rowSplit(myRows,splitFactor)  
    
-   # partialCensus will be counts, by thread, of the number of data points
-   # in myRows for each level of splitFactor
+   # partialCensus will be counts, by thread (rows), of the number of
+   # data points for each level of splitFactor (columns)
    rthreadsMakeAttachSharedVar('partialCensus',nthreads[1,1],nLvls)
-   sharedGlobals$partialCensus[myid+1,] <- sapply(splitOut,length)
+   ### if (myID == 0) rthreadsMakeSharedVar('partialCensus',nthreads[1,1],nLvls)
+   ### rthreadsBarrier()
+   ### if (myID > 0) rthreadsAttachSharedVar('partialCensus')
+   sharedGlobals$partialCensus[myID+1,] <- sapply(splitOut,length)
    # note that no lock is needed above, as different threads write to 
    # different parts of partialCensus, and don't read other parts
 
-   rthreadsBarrier()
    # fullCensus is then shows the counts, NOT broken down by thread
    # cumsumCensus is then the cumulative sums version
    fullCensus <- colSums(sharedGlobals$partialCensus[,])
-   cumsumCensus <- applysharedGlobals$(partialCensus[,],2,cumsum)
+   cumsumCensus <- apply(sharedGlobals$partialCensus[,],2,cumsum)
  
    # start building the output list; element i will be a shared matrix
    # consisting of the rows of M for which splitFactor has level i 
-   outList <- list()  # each thread will have its own identical copy
-   for (i in 1:nlvls) {
+   for (i in 1:nLvls) {
       varName <- paste0(prefix,'.',lvls[i])
-      rthreadsMakeAttachSharedVar(varName,fullCensus[i],ncolM)
+      if (fullCensus[i] > 0) {
+         if (myID == 0) rthreadsMakeSharedVar(varName,fullCensus[i],ncolM)
+      } else rthreadsMakeSharedVar(varName,1,1,NA)
+      rthreadsBarrier()
+      if (myID > 0) rthreadsAttachSharedVar(varName)
    }
 
+browser()
    # now fill the list in; this thread looks at cumsumCensus to
    # determine where in M to place the rows found by this thread;
    # again, no need for locks etc.
-   for (k in 1:nlvls) {
+   outList <- list()  # each thread will have its own identical copy
+   for (k in 1:nLvls) {
       if (myID == 0)  
          outList[[k]] <- M[splitOut[[k]],]
       else {
          first <- cumsumCensus[k-1]  + 1
          last <- first + length(splitOut[k]) - 1
-         outList[[k]] <- M[splitOut[[k]],]
+         outList[[k]] <- M[first:last,]
       }
    }
+
+   names(outList) <- levels(splitFactor)
 
    outList
 }
@@ -268,11 +279,19 @@ evalr <- function (toexec)
     eval(parse(text = toexec), parent.frame())
 }
 
-# splits the values in rowNums according to their levels in the factor ff
+# splits the values in rowNums according to their levels in the factor f
 rowSplit <- function(rowNums,f) 
 {
    frn <- f[rowNums]
    split(rowNums,frn)
+}
+
+# convenience function; say factor f has unused levels; removes them and
+# creates a new factor, indentical to f but with the correct levels
+shortFactor <- function(f) 
+{
+   f <- as.character(levels(f))
+   as.factor(f)
 }
 
 quickstart <- function() 

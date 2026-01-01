@@ -8,7 +8,7 @@ export(rthreadsSetup,rthreadsJoin,rthreadsAtomicInc,rthreadsAttachMutex,
    rthreadsSrcExamples,rthreadsSplit,rthreadsMakeAttachSharedVar,
    tmSendKeys,tmRthreadsInit,tmNxt,tmPrv,tmWinK, tmQuit,tmGetNWindows,
    tmReduceNThreads,
-   quickstart)
+   shortFactor,quickstart)
 
 importFrom("utils", "browseURL")
 
