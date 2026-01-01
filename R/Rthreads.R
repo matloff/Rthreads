@@ -188,7 +188,9 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    sharedGlobals$partialCensus[myID+1,] <- sapply(splitOut,length)
    # note that no lock is needed above, as different threads write to 
    # different parts of partialCensus, and don't read other parts
+   rthreadsBarrier()
 
+browser()
    # fullCensus is then shows the counts, NOT broken down by thread
    # cumsumCensus is then the cumulative sums version
    fullCensus <- colSums(sharedGlobals$partialCensus[,])
@@ -290,7 +292,7 @@ rowSplit <- function(rowNums,f)
 # creates a new factor, indentical to f but with the correct levels
 shortFactor <- function(f) 
 {
-   f <- as.character(levels(f))
+   f <- as.character(f)
    as.factor(f)
 }
 
