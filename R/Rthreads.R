@@ -153,7 +153,7 @@ rthreadsBarrier <- function()
 }
 
 # analogous to R's 'split' function; inputs a shared matrix M (specified
-# as a quoted name), and splits the rows according to the R factors
+# as a quoted name), and splits the rows according to the R factor
 # splitFactor; returns an R list of shared matrices (note that each is
 # just a reference, thus eligible as components of a list) 
 
@@ -169,64 +169,57 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
-   if (nLvls > nrow(M)) stop('too many levels')
    ncolM <- ncol(M)
+   nrowM <- nrow(M)
+   if (nLvls > nrowM) stop('too many levels')
    myRows <- parallel::splitIndices(nrow(M),nthreads[1,1])[[myID+1]] 
 
    # this thread now calls a variant of standard R 'split', resulting in
    # an R list, 'splitOut', with one element per level of the factor;
    # element k of the list shows the rows among 'myRows' that have level
-   # k of THIS factor
+   # k of this factor
    splitOut <- rowSplit(myRows,splitFactor)  
    
-   # partialCensus will be counts, by thread (rows), of the number of
-   # data points for each level of splitFactor (columns)
-   rthreadsMakeAttachSharedVar('partialCensus',nthreads[1,1],nLvls)
-   ### if (myID == 0) rthreadsMakeSharedVar('partialCensus',nthreads[1,1],nLvls)
-   ### rthreadsBarrier()
-   ### if (myID > 0) rthreadsAttachSharedVar('partialCensus')
-   sharedGlobals$partialCensus[myID+1,] <- sapply(splitOut,length)
-   # note that no lock is needed above, as different threads write to 
-   # different parts of partialCensus, and don't read other parts
-   rthreadsBarrier()
-
-browser()
-   # fullCensus is then shows the counts, NOT broken down by thread
-   # cumsumCensus is then the cumulative sums version
-   fullCensus <- colSums(sharedGlobals$partialCensus[,])
-   cumsumCensus <- apply(sharedGlobals$partialCensus[,],2,cumsum)
  
-   # start building the output list; element i will be a shared matrix
-   # consisting of the rows of M for which splitFactor has level i 
-   for (i in 1:nLvls) {
-      varName <- paste0(prefix,'.',lvls[i])
-      if (fullCensus[i] > 0) {
-         if (myID == 0) rthreadsMakeSharedVar(varName,fullCensus[i],ncolM)
-      } else rthreadsMakeSharedVar(varName,1,1,NA)
-      rthreadsBarrier()
-      if (myID > 0) rthreadsAttachSharedVar(varName)
+   # start building the output, an R list; element i will be (a memory
+   # reference to) a shared matrix consisting of the rows of M for which
+   # splitFactor has level i 
+
+   # a problem is how large to make these shared matrices; here we just
+   # use the size of M for convenience, but this could be problematic if
+   # M is very large
+
+   # start to form outList, row numbers only for now, by merging the
+   # various threads' splitOut lists
+   rthreadsMakeAttachSharedVar('rowNums',nThreads,ncolM)
+   mtx <- sharedGlobals$mutex0
+   for (k in 1:nLvls) {
+      # merge my list of row numbers for factor level k with those of
+      # the other threads
+      synchronicity::lock(mtx)
+      if (myID == 0) rowNums[k,] <- splitOut[[k]]
+      else rowNums[k,] <- cat(rowNums[k,],splitOut[[k]])
+      synchronicity::unlock(mtx)
    }
 
-browser()
-   # now fill the list in; this thread looks at cumsumCensus to
-   # determine where in M to place the rows found by this thread;
-   # again, no need for locks etc.
-   outList <- list()  # each thread will have its own identical copy
-   for (k in 1:nLvls) {
-      if (myID == 0)  
-         outList[[k]] <- M[splitOut[[k]],]
+   outList <- list()
+   for (i in 1:nLvls) {
+      varName <- paste0(prefix,'.',lvls[i])
+      outListNames[i] <- varName
+      rni <- rowNums[i]
+      if (length(rni) == 0) outList[[i]] <- NULL
       else {
-         first <- cumsumCensus[k-1]  + 1
-         last <- first + length(splitOut[k]) - 1
-         outList[[k]] <- M[first:last,]
+         # form submatrix
+         m <- M[rowNums[i],]
+         rthreadsMakeAttachSharedVar(varName,length(rni),ncolM,m)
+         outList[[i]] <- get(varName,envir=sharedGlobals)
       }
    }
 
-   names(outList) <- levels(splitFactor)
-
    outList
-}
 
+}
+   
 # utils to get around "hidden" namespace
 # rows, cols are ranges, e.g. 5:25
 
