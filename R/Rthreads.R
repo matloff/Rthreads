@@ -2,7 +2,7 @@
 library(bigmemory)
 library(synchronicity)
 
-sharedGlobals <- new.env(parent=emptyenv())
+sharedGlobals <- new.env(parent=emptyenv()) 
 topDir <- '/tmp'
 
 # executed only by thread 0
@@ -101,6 +101,7 @@ rthreadsMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL)
    if (myID == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
    rthreadsBarrier()
    if (myID > 0) rthreadsAttachSharedVar(varName)
+   rthreadsBarrier()
 }
 
 # create a mutex shareable across threads
@@ -165,23 +166,22 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
 {
 
    M <- get(M,envir=sharedGlobals)
-   nthreads <- sharedGlobals$nThreads
+   nthreads <- sharedGlobals$nThreads[1,1]
    myID <- rthreadsMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
    ncolM <- ncol(M)
    nrowM <- nrow(M)
    if (nLvls > nrowM) stop('too many levels')
-   myRows <- parallel::splitIndices(nrow(M),nthreads[1,1])[[myID+1]] 
-
+   myRows <- parallel::splitIndices(nrow(M),nthreads)[[myID +1]] 
    # this thread now calls a variant of standard R 'split', resulting in
    # an R list, 'splitOut', with one element per level of the factor;
    # element k of the list shows the rows among 'myRows' that have level
    # k of this factor
    splitOut <- rowSplit(myRows,splitFactor)  
-   
+   myCounts <-sapply(splitOut,function(i) length(i))
  
-   # start building the output, an R list; element i will be (a memory
+   # start building the output, an R list; element i will be (a memory 
    # reference to) a shared matrix consisting of the rows of M for which
    # splitFactor has level i 
 
@@ -189,28 +189,48 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    # use the size of M for convenience, but this could be problematic if
    # M is very large
 
-   # start to form outList, row numbers only for now, by merging the
-   # various threads' splitOut lists
-   rthreadsMakeAttachSharedVar('rowNums',nThreads,ncolM)
+   # start to form outList, row numbers only at this point, merging the
+   # various threads' splitOut lists; row i will contain the row numbers
+   # within all of M with splitFactor level i
+   rthreadsMakeAttachSharedVar('rowNums',nLvls,nrowM)
+   # we form row i of rowNums by concatenating the corresponding row
+   # numbers for each thread; this is not done via the c(), but rather
+   # by keeping track of where in rowNums the empty space (0s) currently
+   # begins, and filling at starting there
+   rthreadsMakeAttachSharedVar('numNon0s',nLvls,1,0)
    mtx <- sharedGlobals$mutex0
    for (k in 1:nLvls) {
       # merge my list of row numbers for factor level k with those of
       # the other threads
-      synchronicity::lock(mtx)
-      if (myID == 0) rowNums[k,] <- splitOut[[k]]
-      else rowNums[k,] <- cat(rowNums[k,],splitOut[[k]])
-      synchronicity::unlock(mtx)
+      if (myID == 0) {
+         sok <- splitOut[[k]]
+         sharedGlobals$rowNums[k,1:length(sok)] <- sok
+         sharedGlobals$numNon0s[k,1] <- length(sok)
+      }
+      rthreadsBarrier()
+      if (myID > 0) {
+         synchronicity::lock(mtx)
+         sok <- splitOut[[k]]
+         if (length(sok) > 0) {
+            whereToPutIt <- 
+               (sharedGlobals$numNon0s[k,1]+1):
+               (sharedGlobals$numNon0s[k,1]+myCounts[k])
+            sharedGlobals$rowNums[k,whereToPutIt] <- sok
+            sharedGlobals$numNon0s[k,1] <- 
+               sharedGlobals$numNon0s[k,1]+myCounts[k]
+         }
+         synchronicity::unlock(mtx)
+      }
    }
 
    outList <- list()
    for (i in 1:nLvls) {
       varName <- paste0(prefix,'.',lvls[i])
-      outListNames[i] <- varName
-      rni <- rowNums[i]
+      rni <- sharedGlobals$rowNums[i,]
       if (length(rni) == 0) outList[[i]] <- NULL
       else {
          # form submatrix
-         m <- M[rowNums[i],]
+         m <- M[sharedGlobals$rowNums[i],]
          rthreadsMakeAttachSharedVar(varName,length(rni),ncolM,m)
          outList[[i]] <- get(varName,envir=sharedGlobals)
       }
@@ -274,11 +294,11 @@ evalr <- function (toexec)
     eval(parse(text = toexec), parent.frame())
 }
 
-# splits the values in rowNums according to their levels in the factor f
-rowSplit <- function(rowNums,f) 
+# splits the values in rowNumbers according to their levels in the factor f
+rowSplit <- function(rowNumbers,f) 
 {
-   frn <- f[rowNums]
-   split(rowNums,frn)
+   frn <- f[rowNumbers]
+   split(rowNumbers,frn)
 }
 
 # convenience function; say factor f has unused levels; removes them and
