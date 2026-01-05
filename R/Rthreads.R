@@ -158,7 +158,14 @@ rthreadsBarrier <- function()
 # splitFactor; returns an R list of shared matrices (note that each is
 # just a reference, thus eligible as components of a list) 
 
-# shared matrices must have names, which will be of the form
+# one can then use list functions; e.g. for output 'z'
+#
+#    sapply(z,function(i) mean(i[1,]))
+#
+# returns the mean of column 1 of each group
+
+# shared matrices must have names, even though they may not be very
+# useful in this context; they are implemented here in the form
 # prefix.suffix, where suffix is the corresponding splitFactor levels
 # name, e.g. split.1 and split.qq if levels(splitFactor) = c('1','qq')
 
@@ -174,34 +181,44 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    nrowM <- nrow(M)
    if (nLvls > nrowM) stop('too many levels')
    myRows <- parallel::splitIndices(nrow(M),nthreads)[[myID +1]] 
+
    # this thread now calls a variant of standard R 'split', resulting in
    # an R list, 'splitOut', with one element per level of the factor;
    # element k of the list shows the rows among 'myRows' that have level
    # k of this factor
+
    splitOut <- rowSplit(myRows,splitFactor)  
    myCounts <-sapply(splitOut,function(i) length(i))
  
-   # start building the output, an R list; element i will be (a memory 
-   # reference to) a shared matrix consisting of the rows of M for which
-   # splitFactor has level i 
+   # start building the output, 'outList',an R list; element i will be
+   # (a memory reference to) a shared matrix consisting of the rows of M
+   # for which splitFactor has level i 
 
-   # a problem is how large to make these shared matrices; here we just
-   # use the size of M for convenience, but this could be problematic if
-   # M is very large
+   # numerous opportunities for optimization here; e.g.  a problem is
+   # how large to make these shared matrices; here we just use the size
+   # of M for convenience, but this could be problematic if M is very
+   # large
 
-   # start to form outList, row numbers only at this point, merging the
-   # various threads' splitOut lists; row i will contain the row numbers
-   # within all of M with splitFactor level i
+   # start to form 'outList', row numbers only at this point, merging
+   # the various threads' 'splitOut' lists; row i of 'rowNums' will
+   # contain the row numbers within all of M with 'splitFactor' level i;
+   # there will be NA values as padding on the right
+
    rthreadsMakeAttachSharedVar('rowNums',nLvls,nrowM)
-   # we form row i of rowNums by concatenating the corresponding row
+
+   # we form row i of 'rowNums' by concatenating the corresponding row
    # numbers for each thread; this is not done via the c(), but rather
-   # by keeping track of where in rowNums the empty space (0s) currently
-   # begins, and filling at starting there
+   # by keeping track of where in the 'rowNums' row i the empty space
+   # (NAs) currently begins, and filling starting there; 'numNon0s'
+   # keeps track of this
+
    rthreadsMakeAttachSharedVar('numNon0s',nLvls,1,0)
+
    mtx <- sharedGlobals$mutex0
    for (k in 1:nLvls) {
       # merge my list of row numbers for factor level k with those of
-      # the other threads
+      # the other threads; thread 0 will get things started, while the
+      # other threads wait
       if (myID == 0) {
          sok <- splitOut[[k]]
          sharedGlobals$rowNums[k,1:length(sok)] <- sok
@@ -214,10 +231,10 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
          if (length(sok) > 0) {
             whereToPutIt <- 
                (sharedGlobals$numNon0s[k,1]+1):
-               (sharedGlobals$numNon0s[k,1]+myCounts[k])
+               (sharedGlobals$numNon0s[k,1]+myCounts[[k]])
             sharedGlobals$rowNums[k,whereToPutIt] <- sok
             sharedGlobals$numNon0s[k,1] <- 
-               sharedGlobals$numNon0s[k,1]+myCounts[k]
+               sharedGlobals$numNon0s[k,1]+myCounts[[k]]
          }
          synchronicity::unlock(mtx)
       }
@@ -226,11 +243,13 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    outList <- list()
    for (i in 1:nLvls) {
       varName <- paste0(prefix,'.',lvls[i])
-      rni <- sharedGlobals$rowNums[i,]
-      if (length(rni) == 0) outList[[i]] <- NULL
+      # how many in this row?
+      nn0s <- sharedGlobals$numNon0s[i,1]
+      if (nn0s == 0) outList[[i]] <- NULL
       else {
+         rni <- sharedGlobals$rowNums[i,1:nn0s]
          # form submatrix
-         m <- M[sharedGlobals$rowNums[i],]
+         m <- M[rni,]
          rthreadsMakeAttachSharedVar(varName,length(rni),ncolM,m)
          outList[[i]] <- get(varName,envir=sharedGlobals)
       }
