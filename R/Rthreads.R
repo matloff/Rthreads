@@ -6,36 +6,36 @@ sharedGlobals <- new.env(parent=emptyenv())
 topDir <- '/tmp'
 
 # executed only by thread 0
-rthreadsSetup <- function(nThreads) 
+rthSetup <- function(nThreads) 
 { 
 
-   rthreadsMakeSharedVar('myIDs',nThreads,1,NA)
+   rthMakeSharedVar('myIDs',nThreads,1,NA)
    sharedGlobals[['myIDs']][1,1] <- Sys.getpid()
 
    # set up shared globals
-   rthreadsMakeSharedVar('nThreads',1,1,nThreads)
-   rthreadsMakeSharedVar('nJoined',1,1,1)
-   rthreadsMakeSharedVar('nDone',1,1,0)
-   rthreadsMakeMutex('mutex0')
-   rthreadsMakeBarrier()
+   rthMakeSharedVar('nThreads',1,1,nThreads)
+   rthMakeSharedVar('nJoined',1,1,1)
+   rthMakeSharedVar('nDone',1,1,0)
+   rthMakeMutex('mutex0')
+   rthMakeBarrier()
    
 }
 
 # run by all threads, including 0
-rthreadsJoin <- function() 
+rthJoin <- function() 
 {
    # check in 
    if (is.null(sharedGlobals$myIDs)) {  # not thread 0
-      rthreadsAttachSharedVar('nThreads')
-      rthreadsAttachSharedVar('nJoined')
-      rthreadsAttachMutex('mutex0')
+      rthAttachSharedVar('nThreads')
+      rthAttachSharedVar('nJoined')
+      rthAttachMutex('mutex0')
       # get my thread ID
-      nj <- rthreadsAtomicInc('nJoined') 
-      rthreadsAttachSharedVar('myIDs')  
+      nj <- rthAtomicInc('nJoined') 
+      rthAttachSharedVar('myIDs')  
       sharedGlobals$myIDs[nj+1,1] <- Sys.getpid()
-      rthreadsAttachSharedVar('nDone')
-      rthreadsAttachSharedVar('barrier0')
-      rthreadsAttachMutex('barrMutex0')
+      rthAttachSharedVar('nDone')
+      rthAttachSharedVar('barrier0')
+      rthAttachMutex('barrMutex0')
    } 
 
    # wait for everyone else
@@ -47,7 +47,7 @@ rthreadsJoin <- function()
 # same for mtx
 
 # element [1,] is incremented; so, can have vector incrementing vector
-rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1) 
+rthAtomicInc <- function(sharedV,mtx='mutex0',increm=1) 
 {
    mtx <- sharedGlobals[[mtx]]
    synchronicity::lock(mtx)
@@ -60,21 +60,21 @@ rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
    return(oldVal)
 }
 
-rthreadsMakeBarrier <- function()
+rthMakeBarrier <- function()
 {
-   rthreadsMakeMutex('barrMutex0')
-   rthreadsMakeSharedVar('barrier0',1,2,
+   rthMakeMutex('barrMutex0')
+   rthMakeSharedVar('barrier0',1,2,
       initVal=c(sharedGlobals$nThreads[1,1],0))
 }
 
-rthreadsInitBarrier <- function() 
+rthInitBarrier <- function() 
 {
    sharedGlobals$barrier0[1,] <- c(sharedGlobals$nThreads[,],0)
 }
 
 # create a variable shareable across threads; must be a matrix, even if
 # only 1x1
-rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL) 
+rthMakeSharedVar <- function(varName,nr,nc,initVal=NULL) 
 {
    tmp <- big.matrix(nr,nc,type='double')
    if (!is.null(initVal)) {
@@ -87,7 +87,7 @@ rthreadsMakeSharedVar <- function(varName,nr,nc,initVal=NULL)
 }
 
 # look up ID for this thread
-rthreadsMyID <- function() 
+rthMyID <- function() 
 {
    tmp <- which(sharedGlobals[['myIDs']][,] == Sys.getpid())
    if (length(tmp) == 0) stop('thread ID lookup failed')
@@ -95,17 +95,17 @@ rthreadsMyID <- function()
 }
 
 # make and attach shared variable, within the same code
-rthreadsMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL) 
+rthMakeAttachSharedVar <- function(varName,nr,nc,initVal=NULL) 
 {
-   myID <- rthreadsMyID()
-   if (myID == 0) rthreadsMakeSharedVar(varName,nr,nc,initVal)
-   rthreadsBarrier()
-   if (myID > 0) rthreadsAttachSharedVar(varName)
-   rthreadsBarrier()
+   myID <- rthMyID()
+   if (myID == 0) rthMakeSharedVar(varName,nr,nc,initVal)
+   rthBarrier()
+   if (myID > 0) rthAttachSharedVar(varName)
+   rthBarrier()
 }
 
 # create a mutex shareable across threads
-rthreadsMakeMutex <- function(mutexName) 
+rthMakeMutex <- function(mutexName) 
 {
    tmp <- boost.mutex()
    desc <- describe(tmp)
@@ -114,27 +114,27 @@ rthreadsMakeMutex <- function(mutexName)
    sharedGlobals[[mutexName]] <- tmp
 }
 
-rthreadsAttachSharedVar <- function(varName) 
+rthAttachSharedVar <- function(varName) 
 {
    descFile <- paste0(topDir,'/',varName,'.desc')
    desc <- dget(descFile)
    sharedGlobals[[varName]] <- attach.big.matrix(desc)
 }
 
-rthreadsAttachMutex <- function(mutexName) 
+rthAttachMutex <- function(mutexName) 
 {
    descFile <- paste0(topDir,'/',mutexName,'.desc')
    desc <- dget(descFile)
    sharedGlobals[[mutexName]] <- attach.mutex(desc)
 }
 
-rthreadsWaitDone <- function() 
+rthWaitDone <- function() 
 {
-   rthreadsAtomicInc('nDone')
+   rthAtomicInc('nDone')
    while (sharedGlobals$nDone[1,1] < sharedGlobals$nThreads) {}
 }
 
-rthreadsBarrier <- function() 
+rthBarrier <- function() 
 {
    mtx <- sharedGlobals$barrMutex0
    barr <- sharedGlobals$barrier0
@@ -169,12 +169,12 @@ rthreadsBarrier <- function()
 # prefix.suffix, where suffix is the corresponding splitFactor levels
 # name, e.g. split.1 and split.qq if levels(splitFactor) = c('1','qq')
 
-rthreadsSplit <- function(M,splitFactor,prefix='split') 
+rthSplit <- function(M,splitFactor,prefix='split') 
 {
 
    M <- get(M,envir=sharedGlobals)
    nthreads <- sharedGlobals$nThreads[1,1]
-   myID <- rthreadsMyID()
+   myID <- rthMyID()
    lvls <- levels(splitFactor)
    nLvls <- length(lvls)
    ncolM <- ncol(M)
@@ -204,7 +204,7 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    # contain the row numbers within all of M with 'splitFactor' level i;
    # there will be NA values as padding on the right
 
-   rthreadsMakeAttachSharedVar('rowNums',nLvls,nrowM)
+   rthMakeAttachSharedVar('rowNums',nLvls,nrowM)
 
    # we form row i of 'rowNums' by concatenating the corresponding row
    # numbers for each thread; this is not done via the c(), but rather
@@ -212,7 +212,7 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    # (NAs) currently begins, and filling starting there; 'numNon0s'
    # keeps track of this
 
-   rthreadsMakeAttachSharedVar('numNon0s',nLvls,1,0)
+   rthMakeAttachSharedVar('numNon0s',nLvls,1,0)
 
    mtx <- sharedGlobals$mutex0
    for (k in 1:nLvls) {
@@ -224,7 +224,7 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
          sharedGlobals$rowNums[k,1:length(sok)] <- sok
          sharedGlobals$numNon0s[k,1] <- length(sok)
       }
-      rthreadsBarrier()
+      rthBarrier()
       if (myID > 0) {
          synchronicity::lock(mtx)
          sok <- splitOut[[k]]
@@ -250,7 +250,7 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
          rni <- sharedGlobals$rowNums[i,1:nn0s]
          # form submatrix
          m <- M[rni,]
-         rthreadsMakeAttachSharedVar(varName,length(rni),ncolM,m)
+         rthMakeAttachSharedVar(varName,length(rni),ncolM,m)
          outList[[i]] <- get(varName,envir=sharedGlobals)
       }
    }
@@ -258,18 +258,78 @@ rthreadsSplit <- function(M,splitFactor,prefix='split')
    outList
 
 }
+
+# threaded parallel grid search, optimizing values of tuning
+# parameters/hyperparameters
+
+# example:
+# data(mlb)
+# rthGridSearch(
+#    'randomForest(Weight ~ .,data=trainData)',mlb,
+#    pars=list(nTree=c(10,100),nodesize=c(5,25,75)))
+
+# that first string will be combined with the parameters to make an
+# executable call when run through 'evalr'
+
+# 'trainData' is the actual name of a variable in the code 
+
+# for each combination of parameter values in 'pars', the function will
+# do 'nXval' repetitions of cross-validation with test set set 'nTest'
+
+# 'classif' is true for classification problems, FALSE for regression
+
+# the role of 'predFtn' is as follows: 1. one can use custom loss
+# functions, e.g. (Y - predY)^2 instead of |Y - predY|; 2. typically,
+# when the output of the user's call is fed directly into predict(), the
+# predicted values are returned, which the code here assumes by default;
+# but for packages such as 'ranger', predict() returns an object whose
+# components include the predicted values, which one can accommodate
+# with 'predFtn'
+
+rthGridSearch <- 
+   function(basicCall,data,pars,nXval,nTest,classif=FALSE,predFtn=NULL) 
+{
+   # form results table
+   combs <- do.call(expand.grid,pars)
+   combs$mean <- rep(NA,nrow(combs))
+   combs$stdErr <- rep(NA,nrow(combs))
+   combs <- as.matrix(combs)
+
+   # form shared version of combs
+   myID <- rthMyID()
+   if (myID == 0) {
+     rthMakeSharedVar('Combs',nrow(combs),ncol(combs),combs)
+   }
+   rthBarrier()
+   if (myID == 0) rthAttachSharedVar('Combs')
+
+   myRows <- parallel::splitIndices(nrow(combs),nthreads)[[myID +1]] 
+
+   for (myrow in myRows) {
+   }
+
+}
+
+splitTrainTest <- defmacro(dta,testSetSize,expr={
+     rows <- 1:nrow(dta)
+     testRows <- sample(rows,testSetSize)
+     trainRows <- setdiff(rows,testRows)
+     testData <- dta[testRows,]
+     trainData <- dta[trainRows,]
+   }
+)
    
 # utils to get around "hidden" namespace
 # rows, cols are ranges, e.g. 5:25
 
-rthreadsSGset <- function(sharedVarName,rows,cols,value) 
+rthSGset <- function(sharedVarName,rows,cols,value) 
 {
    tmp <- paste0('sharedGlobals$',sharedVarName)
    sv <- evalr(tmp)
    sv[rows,cols] <- value
 }
 
-rthreadsSGget <- 
+rthSGget <- 
    function(sharedVarName,rows='all',cols='all',pointerOnly=FALSE)
 {
    tmp <- paste0('sharedGlobals$',sharedVarName)
@@ -281,19 +341,19 @@ rthreadsSGget <-
 }
 
 ### # print all of myGlobals
-### rthreadsPrintMG <- function() 
+### rthPrintMG <- function() 
 ### {
 ###    for(nm in names(myGlobals)) print(myGlobals[[nm]])
 ### }
 
 # print all of sharedGlobals
-rthreadsPrintSG <- function() 
+rthPrintSG <- function() 
 {
    for(nm in names(sharedGlobals)) cat(nm,' = ',sharedGlobals[[nm]][1,],'\n')
 }
 
 # device to get user access to Rthreads workspace
-rthreadsDoCmds <- function()
+rthDoCmds <- function()
 {
    while(1) {
       cmd <- readline('enter cmd or blank line to quit: ')
@@ -302,7 +362,7 @@ rthreadsDoCmds <- function()
    }
 }
 
-rthreadsSrcExamples <- function(exName)
+rthSrcExamples <- function(exName)
 {
    fl <- system.file('examples',exName,package='Rthreads')
    source(fl)
