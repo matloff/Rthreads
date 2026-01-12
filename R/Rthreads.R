@@ -291,8 +291,8 @@ rthGridSearch <-
 {
    # form results table
    combs <- do.call(expand.grid,pars)
-   combs$mean <- rep(NA,nrow(combs))
-   combs$stdErr <- rep(NA,nrow(combs))
+   combs$means <- rep(NA,nrow(combs))
+   combs$stdErrs <- rep(NA,nrow(combs))
    combs <- as.matrix(combs)
 
    # form shared version of combs
@@ -305,7 +305,17 @@ rthGridSearch <-
 
    myRows <- parallel::splitIndices(nrow(combs),nthreads)[[myID +1]] 
 
+   meansStdErrs <- matrix(nrow=nXval,ncol=2)
    for (myrow in myRows) {
+      parNames <- names(pars)
+      for (i in 1:nXval) {
+         splitTrainTest(data,nTest)  # produces trainData, testData
+         for (i in 1:length((pars)) {
+            # form full call
+            theCall <- paste0(basicCall,',',parNames[i],'=',combs[myrow,i])
+         }
+         theCall <- paste0(theCall,')')
+      }
    }
 
 }
