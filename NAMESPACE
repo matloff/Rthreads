@@ -5,7 +5,7 @@ export(rthSetup,rthJoin,rthAtomicInc,rthAttachMutex,
    rthAttachSharedVar,rthMakeMutex,rthMakeSharedVar,
    rthWaitDone,rthMakeBarrier,rthInitBarrier,rthBarrier,
    rthSGset,rthSGget,topDir,sharedGlobals,
-   rthSrcExamples,rthSplit,rthMakeAttachSharedVar,
+   rthSrcExamples,rthSplit,rthMakeAttachSharedVar,rthMyID,
    tmSendKeys,tmRthreadsInit,tmNxt,tmPrv,tmWinK, tmQuit,tmGetNWindows,
    tmReduceNThreads,
    shortFactor,quickstart)
