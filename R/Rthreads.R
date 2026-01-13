@@ -295,7 +295,8 @@ rthGridSearch <-
    combs$stdErrs <- rep(NA,nrow(combs))
    combs <- as.matrix(combs)
 
-   # form shared version of combs
+   # form shared version of combs; this eventually will hold the results
+   # of the function
    myID <- rthMyID()
    if (myID == 0) {
      rthMakeSharedVar('Combs',nrow(combs),ncol(combs),combs)
@@ -305,17 +306,28 @@ rthGridSearch <-
 
    myRows <- parallel::splitIndices(nrow(combs),nthreads)[[myID +1]] 
 
-   meansStdErrs <- matrix(nrow=nXval,ncol=2)
+   losses <- vector(length=nXval)
+   parNames <- names(pars)
    for (myrow in myRows) {
-      parNames <- names(pars)
+      # form full call
+      theCall <- basicCall
+      for (i in 1:length((pars)) {
+         theCall <- 
+            paste0(theCall,',',parNames[i],'=',combs[myrow,i]) }
+      theCall <- paste0(theCall,')')
+      # do the computation for this comb
       for (i in 1:nXval) {
          splitTrainTest(data,nTest)  # produces trainData, testData
-         for (i in 1:length((pars)) {
-            # form full call
-            theCall <- paste0(basicCall,',',parNames[i],'=',combs[myrow,i])
-         }
-         theCall <- paste0(theCall,')')
+         outObj <- evalr(theCall)
+         preds <- predict(outObj,testX)
+         losses[i] <- 
+            if (classif) mean(preds != trainY)
+            else mean(abs(preds - trainY))
       }
+      # record outcome
+      Combs$means[myRow] <- mean(losses)
+      Combs$stdErrs[myRow] <- sd((losses)
+
    }
 
 }
