@@ -1,11 +1,11 @@
 
 import(bigmemory,synchronicity,parallel)
 
-export(rthreadsSetup,rthreadsJoin,rthreadsAtomicInc,rthreadsAttachMutex,
-   rthreadsAttachSharedVar,rthreadsMakeMutex,rthreadsMakeSharedVar,
-   rthreadsWaitDone,rthreadsMakeBarrier,rthreadsInitBarrier,rthreadsBarrier,
-   rthreadsSGset,rthreadsSGget,topDir,sharedGlobals,
-   rthreadsSrcExamples,rthreadsSplit,rthreadsMakeAttachSharedVar,
+export(rthSetup,rthJoin,rthAtomicInc,rthAttachMutex,
+   rthAttachSharedVar,rthMakeMutex,rthMakeSharedVar,
+   rthWaitDone,rthMakeBarrier,rthInitBarrier,rthBarrier,
+   rthSGset,rthSGget,topDir,sharedGlobals,
+   rthSrcExamples,rthSplit,rthMakeAttachSharedVar,
    tmSendKeys,tmRthreadsInit,tmNxt,tmPrv,tmWinK, tmQuit,tmGetNWindows,
    tmReduceNThreads,
    shortFactor,quickstart)

@@ -1,5 +1,5 @@
 Package: Rthreads
-Version: 1.0.2
+Version: 1.5.0
 Authors@R: person(given = "Norm",
                        family = "Matloff",
                        role = c("aut", "cre"),
@@ -13,6 +13,6 @@ Description: Provides a threads-type parallel programming environment for R.
    performance as well.  
 OS_type: unix
 Depends: R (>= 3.5.0)
-Imports: bigmemory (>= 4.0.0), synchronicity, parallel
+Imports: bigmemory (>= 4.0.0), synchronicity, parallel,gtools
 LazyLoad: no
 License: GPL (>= 2)
