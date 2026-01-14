@@ -1,7 +1,6 @@
 
 library(bigmemory)
 library(synchronicity)
-library(gtools)
 
 sharedGlobals <- new.env(parent=emptyenv()) 
 topDir <- '/tmp'
@@ -260,15 +259,6 @@ rthSplit <- function(M,splitFactor,prefix='split')
 
 }
 
-splitTrainTest <- defmacro(dta,testSetSize,expr={
-     rows <- 1:nrow(dta)
-     testRows <- sample(rows,testSetSize)
-     trainRows <- setdiff(rows,testRows)
-     testData <- dta[testRows,]
-     trainData <- dta[trainRows,]
-   }
-)
-   
 # utils to get around "hidden" namespace
 # rows, cols are ranges, e.g. 5:25
 

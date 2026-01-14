@@ -53,9 +53,9 @@ tmRthreadsInit <- function(nWindows,tmName='abc')
    for (i in 1:(nWindows-1)) system('tmux new-window')
    tmSendKeys(tmName,'R')
    tmSendKeys(tmName,'library(Rthreads)')
-   setupCall <- paste0('rthreadsSetup(',nWindows,')')
+   setupCall <- paste0('rthSetup(',nWindows,')')
    tmSendKeys(tmName,setupCall,0)
-   checkinCall <- 'rthreadsJoin()'
+   checkinCall <- 'rthJoin()'
    tmSendKeys(tmName,checkinCall,0)
    for (i in 1:(nWindows-1)) tmSendKeys(tmName,checkinCall,i)
 }
@@ -100,7 +100,7 @@ tmGetNWindows <- function(tmName='abc')
 tmReduceNThreads <- function(toRemove,tmName='abc') 
 {
    # update nThreads
-   tmp <- 'nthreads <- rthreadsSGget("nThreads",1,1)'
+   tmp <- 'nthreads <- rthSGget("nThreads",1,1)'
    tmSendKeys(tmName,tmp)
    nRemove <- length(toRemove)
    tmp <- paste0('nremove <- ',sprintf('%d',nRemove))

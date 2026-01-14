@@ -1,4 +1,6 @@
 
+library(gtools)
+
 # threaded parallel grid search, enabling the user to pursue optimizing
 # values of tuning parameters/hyperparameters
 
@@ -76,4 +78,13 @@ rthGridSearch <-
    return(as.data.frame(Combs))
 
 }
+
+splitTrainTest <- defmacro(dta,testSetSize,expr={
+     rows <- 1:nrow(dta)
+     testRows <- sample(rows,testSetSize)
+     trainRows <- setdiff(rows,testRows)
+     testData <- dta[testRows,]
+     trainData <- dta[trainRows,]
+   }
+)
 
