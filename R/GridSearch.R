@@ -54,16 +54,16 @@ rthGridSearch <-
 
    losses <- vector(length=nXval)
    parNames <- names(pars)
+   nPars <- length(pars)
    yCol <- which(names(dta) == yName)
    for (myrow in myRows) {
       # form full call
       theCall <- basicCall
-      for (i in 1:length(pars))
+      for (i in 1:nPars)
          theCall <- 
             paste0(theCall,',',parNames[i],'=',combs[myrow,i]) 
       theCall <- paste0(theCall,')')
       # do the computation for this comb
-browser()
       for (i in 1:nXval) {
          splitTrainTest(dta,nTest,yCol)  # produces trainData, testData, etc.
          outObj <- evalr(theCall)
@@ -73,11 +73,15 @@ browser()
             else mean(abs(preds - testY))
       }
       # record outcome
-      Combs$means[myRow] <- mean(losses)
-      Combs$stdErrs[myRow] <- sd(losses)
+      sharedGlobals[['Combs']][myrow,nPars+1] <- mean(losses)
+      sharedGlobals[['Combs']][myrow,nPars+2] <- 
+         sd(losses) / sqrt(length(losses))
+
    }
 
-   return(as.data.frame(Combs))
+   rthBarrier()
+   # return(as.data.frame(as.matrix(Combs)))
+   sharedGlobals[['Combs']][,]
 
 }
 
