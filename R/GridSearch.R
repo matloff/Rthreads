@@ -4,12 +4,17 @@ library(gtools)
 # threaded parallel grid search, enabling the user to pursue optimizing
 # values of tuning parameters/hyperparameters
 
-# example:
-# library(regtools)
-# data(mlb)
-# library(randomForest)
-# rthGridSearch('randomForest(Weight ~ .,data=trainData',mlb,
-#    pars=list(nTree=c(10,100),nodesize=c(5,25,75)),5,1000)
+# example (using the optional tmux tool):
+#
+#    start tmux in a termal window, tmux new -s abc
+#
+# library(Rthreads)
+# tmRthreadsInit(2,'abc')
+# tmSendKeys('abc',
+#    'data(svcensus); library(randomForest)')
+# tmSendKeys('abc',
+#    'rthGridSearch("randomForest(wageinc ~ .,data=trainData",svcensus,
+#    "wageinc",pars=list(nTree=c(10,100),nodesize=c(5,25,75)),5,1000)')
 
 # that first string will be combined with the parameters to make an
 # executable call when run through 'evalr'
@@ -81,12 +86,14 @@ rthGridSearch <-
 
    rthBarrier()
    # return(as.data.frame(as.matrix(Combs)))
-   sharedGlobals[['Combs']][,]
+   CombsDF <- as.data.frame(as.matrix(sharedGlobals[['Combs']][,]))
+   names(CombsDF) <- c(names(pars),'acc','accSE')
+   CombsDF
 
 }
 
-splitTrainTest <- defmacro(data,testSetSize,yCol,expr={
-     rows <- 1:nrow(data)
+splitTrainTest <- defmacro(data,
+testSetSize,yCol,expr={ rows <- 1:nrow(data)
      testRows <- sample(rows,testSetSize)
      trainRows <- setdiff(rows,testRows)
      testData <- data[testRows,]
