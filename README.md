@@ -1,4 +1,4 @@
-# Rthreads -- Threads(-Like) Package for R!
+# Rthreads: a Threads(-Like) Package for R!
 
 # Filling an Important Gap
 
@@ -16,8 +16,8 @@
 * Alternative to threads is *message-passing*, e.g. R's **parallel**
   package, including via **foreach** interface.
 
-* Threaded coding tends to be clearer and faster, compared to
-  message-passing.
+* Threaded coding tends to be clearer and produce greater speedup,
+  compared to message-passing.
 
 * Thus having a threads capability in R would greatly enhance
   R's capabilities in parallel processing.
@@ -27,10 +27,14 @@
 * Say we are on a quad-core machine. Here is an overview of the two
   paradigms (lots of variants):
 
-* Message passing:
+* Message passing, using the **parallel** package:
+
+  * We would call a **parallel** function to set up a *cluster* of size
+    4, consisting of 4 R processes.
 
   * We would write 2 functions, a worker and a manager. There would be,
-    say, 4 copies of the worker code, running fully independently.
+    say, 4 copies of the worker code, running fully independently
+    on the cluster nodes.
 
   * The manager would communicate with the workers by sending/receiving
     messages across the network (though still within the same machine,
@@ -60,6 +64,10 @@
     in shared RAM. One thread might modify a shared variable **x**, and
     then another thread might read the new value.
 
+  * One needs to avoid situations in which one worker is reading a
+    shared variable while others are reading it or writing to it.
+    This is handled via variables known as *mutexes*.
+
   * Say **x** is shared and **y** is nonshared. Then there is only one
     copy of **x** but 4 copies of **y**.
 
@@ -87,7 +95,7 @@
 # How Rthreads Works
 
 * The sole data type is matrix (or vectors, as one-column matrices), a
-  **bigmemory** constraint. A matrix  must be explicitly written with
+  constraint due to **bigmemory**. A matrix  must be explicitly written with
   two (possibly empty) subscripts, e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
 
 * The related **synchronicity** package provides mutex support.
@@ -99,21 +107,22 @@
     Note: Parallel programming is hard, in any form, and thus one may 
     spend much more time debugging code than writing it.
 
-  * Use **tmux** if screen space is an issue. See below.
+  * But use of the included **tmux** wrappers makes this much more
+    convenient, by automating the process of setting up the windows,
+    running R in them, etc.
 
-* Run **rthreadsSetup** in the first window, 
-  then run **rthreadsJoin** in each window (including the first).
+* Setup: First **rthSetup** is run in the first window, and
+  then **rthJoin** is run in each window including the first.
+  Again, this is automated via the **tmux** wrappers.
 
-  Now call your application function code in each window.
+  Now call your application function code in each window (again, can
+  be done via a single **tmux** wrapper call).
 
 * Some in the computing field believe that one should avoid
   having global variables. However, globals are the essence of
   threading. In R, the generally accepted implementation of globals 
-  is to place them in an R environment, which we do here:
-
-  * Shared variables are in the environment **sharedGlobals**.
-
-  * No-shared variables are in the environment **myGlobals**.
+  is to place them in an R environment, which we do here: Shared 
+  variables are in the environment **sharedGlobals**.
 
 # Installation
 
@@ -123,21 +132,28 @@ devtools::install_github('https://github.com/matloff/Rthreads')
 
 # Getting Acquainted with Rthreads (5 minutes)
 
+We first present use of the package "by hand," i.e. without the
+**tmux** wrappers. This is the inconvenient approach, but it illustrates
+the actions of the package well. We then present usage with the
+wrappers, the standard way to use the package.
+
+## A Run-through "By hand"
+
 Create two terminal windows, and in each of them start R and load 
 **Rthreads**. Then go through the sequence below, where a blank entry
 means to not type anything in that window in that step.
 
 | Step | Window 0                                   | Window 1                          |
 |-----:|:-------------------------------------------|:----------------------------------|
-| 1    | rthreadsSetup(2)                           |                                   |
-| 2    | rthreadsJoin()                             | rthreadsJoin()                    |
-| 3    | rthreadsMakeSharedVar('x',1,1,initVal=3)   |                                   |
-| 4    |                                            | rthreadsAttachSharedVar('x')      |
-| 5    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
-| 6    |                                            | rthreadsSGset('x',1,1,8)
-| 7    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
-| 8    | rthreadsSGset('x',1,1,12)
-| 9    | rthreadsSGget('x',1,1)                       | rthreadsSGget('x',1,1)     |
+| 1    | rthSetup(2)                           |                                   |
+| 2    | rthJoin()                             | rthJoin()                    |
+| 3    | rthMakeSharedVar('x',1,1,initVal=3)   |                                   |
+| 4    |                                            | rthAttachSharedVar('x')      |
+| 5    | rthSGget('x',1,1)                       | rthSGget('x',1,1)     |
+| 6    |                                            | rthSGset('x',1,1,8)
+| 7    | rthSGget('x',1,1)                       | rthSGget('x',1,1)     |
+| 8    | rthSGset('x',1,1,12)
+| 9    | rthSGget('x',1,1)                       | rthSGget('x',1,1)     |
 | 10   | myGlobals[['myID']]                        | myGlobals[['myID']]                    |
 
 
@@ -173,9 +189,11 @@ Here is what happens:
 * Step 10: We confirm that the thread IDs are 0 and 1. Note that they
   are not shared.
 
-**Note:** Though only one thread runs **rthreadsSetup**, which we have
+**Note:** Though only one thread runs **rthSetup**, which we have
 done with thread 0 here, that thread does NOT play the role of a
 "manager" as in message-passing. All threads play symmetric roles.
+
+## The Same Example But Using the Cpnvenience Wrappers
 
 # Example: Sorting many long vectors
 
@@ -184,7 +202,7 @@ done with thread 0 here, that thread does NOT play the role of a
 We have a number of vectors, each to be sorted.
 
 ``` r
-# threads configuration: run rthreadsSetup(nThreads=2) or other number
+# threads configuration: run rthSetup(nThreads=2) or other number
 # of threads
 
 # a general issue in parallel computation is that of "load balance,"
@@ -195,8 +213,8 @@ We have a number of vectors, each to be sorted.
 
 setup <- function(vecLengths=1000)  # run in thread 0
 {
-   rthreadsMakeSharedVar('nextRowNum',1,1)
-   rthreadsMakeSharedVar('m',10,vecLengths+1)
+   rthMakeSharedVar('nextRowNum',1,1)
+   rthMakeSharedVar('m',10,vecLengths+1)
    # generate vectors to be sorted, of different sizes
    tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)
@@ -213,8 +231,8 @@ doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
     if (myGlobals$myID != 0) {
-        rthreadsAttachSharedVar("nextRowNum")
-        rthreadsAttachSharedVar("m")
+        rthAttachSharedVar("nextRowNum")
+        rthAttachSharedVar("m")
     } 
    
    m <- sharedGlobals$m
@@ -228,10 +246,10 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       n <- m[rowNum,1]  # vector length
       x <- m[rowNum,2:(n+1)]
       m[rowNum,2:(n+1)] <- sort(x)
-      rowNum <- rthreadsAtomicInc('nextRowNum') 
+      rowNum <- rthAtomicInc('nextRowNum') 
    }
 
-   rthreadsBarrier()  # not really needed
+   rthBarrier()  # not really needed
 
 }
 ```
@@ -273,13 +291,13 @@ Overview of the code:
   value of **nextRowNum** now being 9. But if there is no constraint on
   simultaneous access, both threads may get the value 7, with
   **nextRowNum** now being 8 (called a *race condition*). Use of
-  **rthreadsAtomicInc** ensures that only one thread can access
+  **rthAtomicInc** ensures that only one thread can access
   **nextRowNum** at a time.
 
-* Here is the internal code for **rthreadsAtomicInc**:
+* Here is the internal code for **rthAtomicInc**:
 
   ``` r
-  rthreadsAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
+  rthAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
   {
      mtx <- sharedGlobals[[mtx]]
      synchronicity::lock(mtx)
@@ -361,7 +379,7 @@ Here is the code:
 #  
 #  at any thread do
 #  
-#     dta <- rthreadsSGget('dta')
+#     dta <- rthSGget('dta')
 #     head(dta)
 #  
 #  at some other thread do
@@ -373,14 +391,14 @@ setup <- function(dta)  # run in thread 0
    z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
-   rthreadsMakeSharedVar('dta',nr,nc,initVal=nhis.large)
-   rthreadsInitBarrier()
+   rthMakeSharedVar('dta',nr,nc,initVal=nhis.large)
+   rthInitBarrier()
 }
 
 doImputation <- function()  
 {
    if (myGlobals$myID > 0) {
-      rthreadsAttachSharedVar('dta')
+      rthAttachSharedVar('dta')
    }
    nThreads <- sharedGlobals$nThreads[1,1]
    dta <- sharedGlobals$dta
@@ -407,7 +425,7 @@ doImputation <- function()
    }
 
    # impute data
-   rthreadsBarrier()  # can't change dta while possbily still in use
+   rthBarrier()  # can't change dta while possbily still in use
    for (col in myCols) {
       myimps <- myImputes[[col]]
       if (!is.null(myimps)) {
@@ -462,7 +480,7 @@ the code:
 # findMinDists(adjMat,5)
 
 # check output:
-# rthreadsSGget('done')
+# rthSGget('done')
 
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
@@ -478,8 +496,8 @@ the code:
 
 setup <- function()  # run in thread 0
 {
-   rthreadsMakeSharedVar('nDone',1,1,initVal=0)
-   rthreadsInitBarrier()
+   rthMakeSharedVar('nDone',1,1,initVal=0)
+   rthInitBarrier()
 }
 
 findMinDists <- function(adjMat,destVertex)  
@@ -490,11 +508,11 @@ findMinDists <- function(adjMat,destVertex)
 
    myID <- myGlobals$myID
    if (myID == 0) 
-      rthreadsMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
-   rthreadsBarrier()
+      rthMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
+   rthBarrier()
    if (myID > 0) {
-      rthreadsAttachSharedVar('done')
-      rthreadsAttachSharedVar('nDone')
+      rthAttachSharedVar('done')
+      rthAttachSharedVar('nDone')
    } 
 
    # for brevity, make copies of some shared objects; since they are
@@ -528,12 +546,12 @@ findMinDists <- function(adjMat,destVertex)
       # for some i in myRows we have done[i,1] == 0, that means we
       # have no yet completed analysis of paths from vertex i
       if (all(done[myRows,1] > 0)) {
-         rthreadsAtomicInc('nDone')
+         rthAtomicInc('nDone')
          break
       }
    }
 
-   rthreadsBarrier()
+   rthBarrier()
 }
 
 ```
@@ -590,7 +608,7 @@ can be very helpful in this regard. Basically, they allow multiple
 terminal windows to share the same screen space.
 
 Methods for automating the process of setting up the windows,
-automatically running e.g. **rthreadsJoin** in each one, would be
+automatically running e.g. **rthJoin** in each one, would be
 desirable.  The above utilities can accomplish this by enabling us to
 have code running in one window write a specified string to another
 window. E.g. say we are in the shell of Window A. We can do, e.g. 
@@ -611,7 +629,7 @@ it there ourself! Moreover, we might be running R in Window A, in which
 case we can run the above shell command via R's **system** function
 
 In other words, we can for instance automate the running of
-**rthreadsJoin** in all the windows, instead of having to type the
+**rthJoin** in all the windows, instead of having to type the
 command in each one.
 
 # To Learn More
