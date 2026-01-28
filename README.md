@@ -137,7 +137,7 @@ We first present use of the package "by hand," i.e. without the
 the actions of the package well. We then present usage with the
 wrappers, the standard way to use the package.
 
-## A Run-through "By hand"
+## A Run-through "By Hand"
 
 Create two terminal windows, and in each of them start R and load 
 **Rthreads**. Then go through the sequence below, where a blank entry
@@ -154,13 +154,8 @@ means to not type anything in that window in that step.
 | 7    | rthSGget('x',1,1)                       | rthSGget('x',1,1)     |
 | 8    | rthSGset('x',1,1,12)
 | 9    | rthSGget('x',1,1)                       | rthSGget('x',1,1)     |
-| 10   | myGlobals[['myID']]                        | myGlobals[['myID']]                    |
+| 10    | rthMyID()                       | rthMyID()     |
 
-
-: Get-acquainted run-through
-
-(R environments use R list notation; **myGlobals[['myID']** and
-**myGlobals$myID** are equivalent.)
 
 Here is what happens:
 
@@ -168,9 +163,10 @@ Here is what happens:
 
 * Step 2: Each thread checks in. The first thread has already done so,
   so just one thread checks in this case, but there still must be code
-  that forces even thread 0 to wait until everyone has joined. Note that
-  each thread, upon checking in, will then wait for the others to check
-  in.
+  that forces even thread 0 to wait until everyone has joined. 
+  Each thread, upon checking in, will then wait for the others to check
+  in; you'll see whichever thread you called **rthJoin** on first won't
+  return to the '>' prompt right away.
 
 * Step 3: Thread 0 creates a shared variable **x**, initial value 3.
 
@@ -186,14 +182,15 @@ Here is what happens:
 
 * Step 9: We confirm that both threads now see the value 12 for **x**.
 
-* Step 10: We confirm that the thread IDs are 0 and 1. Note that they
-  are not shared.
+* Step 10: We confirm that the thread IDs are 0 and 1. Note that the
+  **myID** variable (whose value is the one returned by this call) is
+  not shared.
 
 **Note:** Though only one thread runs **rthSetup**, which we have
 done with thread 0 here, that thread does NOT play the role of a
 "manager" as in message-passing. All threads play symmetric roles.
 
-## The Same Example But Using the Cpnvenience Wrappers
+## The Same Example But Using the Convenience Wrappers
 
 # Example: Sorting many long vectors
 
