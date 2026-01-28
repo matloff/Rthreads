@@ -19,7 +19,7 @@
 #  
 #  at any thread do
 #  
-#     dta <- rthreadsSGget('dta')
+#     dta <- rthSGget('dta')
 #     head(dta)
 #  
 #  at some other thread do
@@ -31,14 +31,14 @@ setup <- function(dta)  # run in thread 0
    z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
-   rthreadsMakeSharedVar('dta',nr,nc,initVal=nhis.large)
-   rthreadsInitBarrier()
+   rthMakeSharedVar('dta',nr,nc,initVal=nhis.large)
+   rthInitBarrier()
 }
 
 doImputation <- function()  
 {
    if (myGlobals$myID > 0) {
-      rthreadsAttachSharedVar('dta')
+      rthAttachSharedVar('dta')
    }
    nThreads <- sharedGlobals$nThreads[1,1]
    dta <- sharedGlobals$dta
@@ -65,7 +65,7 @@ doImputation <- function()
    }
 
    # impute data
-   rthreadsBarrier()  # can't change dta while possbily still in use
+   rthBarrier()  # can't change dta while possbily still in use
    for (col in myCols) {
       myimps <- myImputes[[col]]
       if (!is.null(myimps)) {

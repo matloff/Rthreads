@@ -17,7 +17,7 @@
 # findMinDists(adjMat,5)
 
 # check output:
-# rthreadsSGget('done')
+# rthSGget('done')
 
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
@@ -33,8 +33,8 @@
 
 setup <- function()  # run in thread 0
 {
-   rthreadsMakeSharedVar('nDone',1,1,initVal=0)
-   rthreadsInitBarrier()
+   rthMakeSharedVar('nDone',1,1,initVal=0)
+   rthInitBarrier()
 }
 
 findMinDists <- function(adjMat,destVertex)  
@@ -45,11 +45,11 @@ findMinDists <- function(adjMat,destVertex)
 
    myID <- myGlobals$myID
    if (myID == 0) 
-      rthreadsMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
-   rthreadsBarrier()
+      rthMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
+   rthBarrier()
    if (myID > 0) {
-      rthreadsAttachSharedVar('done')
-      rthreadsAttachSharedVar('nDone')
+      rthAttachSharedVar('done')
+      rthAttachSharedVar('nDone')
    } 
 
    # for brevity, make copies of some shared objects; since they are
@@ -83,11 +83,11 @@ findMinDists <- function(adjMat,destVertex)
       # for some i in myRows we have done[i,1] == 0, that means we
       # have no yet completed analysis of paths from vertex i
       if (all(done[myRows,1] > 0)) {
-         rthreadsAtomicInc('nDone')
+         rthAtomicInc('nDone')
          break
       }
    }
 
-   rthreadsBarrier()
+   rthBarrier()
 }
 

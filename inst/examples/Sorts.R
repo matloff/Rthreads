@@ -1,5 +1,5 @@
 
-# threads configuration: run rthreadsSetup(nThreads=2) or other number
+# threads configuration: run rthSetup(nThreads=2) or other number
 # of threads
 
 # a general issue in parallel computation is that of "load balance,"
@@ -10,8 +10,8 @@
 
 setup <- function(vecLengths=1000)  # run in thread 0
 {
-   rthreadsMakeSharedVar('nextRowNum',1,1)
-   rthreadsMakeSharedVar('m',10,vecLengths+1,NA)
+   rthMakeSharedVar('nextRowNum',1,1)
+   rthMakeSharedVar('m',10,vecLengths+1,NA)
    # generate vectors to be sorted, of different sizes
    tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)
@@ -28,8 +28,8 @@ doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
     if (myGlobals$myID != 0) {
-        rthreadsAttachSharedVar("nextRowNum")
-        rthreadsAttachSharedVar("m")
+        rthAttachSharedVar("nextRowNum")
+        rthAttachSharedVar("m")
     } 
    
    m <- sharedGlobals$m
@@ -43,9 +43,9 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       n <- m[rowNum,1]  # vector length
       x <- m[rowNum,2:(n+1)]
       m[rowNum,2:(n+1)] <- sort(x)
-      rowNum <- rthreadsAtomicInc('nextRowNum') 
+      rowNum <- rthAtomicInc('nextRowNum') 
    }
 
-   rthreadsBarrier()  # not really needed
+   rthBarrier()  # not really needed
 
 }
