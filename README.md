@@ -111,6 +111,9 @@
     convenient, by automating the process of setting up the windows,
     running R in them, etc.
 
+    Moreover, use of the wrappers is necessary when writing Rthreads
+    code as R scripts, to be saved in .R files etc., rather than one-offs.
+
 * Setup: First **rthSetup** is run in the first window, and
   then **rthJoin** is run in each window including the first.
   Again, this is automated via the **tmux** wrappers.
@@ -168,7 +171,8 @@ Here is what happens:
   in; you'll see whichever thread you called **rthJoin** on first won't
   return to the '>' prompt right away.
 
-* Step 3: Thread 0 creates a shared variable **x**, initial value 3.
+* Step 3: Thread 0 creates a shared variable **x**, with 1 row and 1
+  column, initial value 3.
 
 * Step 4: Thread 1 attaches **x**.
 
@@ -191,6 +195,40 @@ done with thread 0 here, that thread does NOT play the role of a
 "manager" as in message-passing. All threads play symmetric roles.
 
 ## The Same Example But Using the Convenience Wrappers
+
+Although this code can be executed by simply copying-and-pasting it into
+the original R window, normally it would be stored in a .R file (or IDE
+project), and executed by running **source** or similar on the file or
+project.
+
+First, start a **tmux** session in a terminal window as above. Then:
+
+``` r
+
+# spit tmux window vertically into 2 panes, one for each thread 
+# to be created; start R and Rthreads in them, 
+# and create the threads
+tmRthreadsInit(2)  
+# thread 0, create shared x 
+tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
+# thread 1, attach shared x 
+tmSendKeys('abc','rthAttachSharedVar("x")',1)
+tmSendKeys('abc','sharedGlobals[["x"]][,]')  # see below note re [,] etc.
+# thread 0, change x to 2
+tmSendKeys('abc','rthSGset("x",1,1,2)',1)  
+# check that all threads see the new value
+tmSendKeys('abc','rthSGget("x",1,1)')
+# etc.
+```
+
+Explanation of **sharedGlobals** etc.: The shared variables are stored
+in the R environment of that name. So they can be read or written to
+directly in that environment, as seen here, providing a direct
+alternative to **rthSGset** and **rthSGget**.
+
+A shared variable **x** is a **bigmemory** object, which is a pointer to
+the corresponding matrix. So to access the matrix, we need to specify
+row and column numbers, or for the full matrix, [,].
 
 # Example: Sorting many long vectors
 
