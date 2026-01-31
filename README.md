@@ -107,34 +107,36 @@
 
 * The related **synchronicity** package provides mutex support.
 
-* Each thread runs in its own terminal window (or equivalent, e.g.
-  in the RStudio Console).
+* Each thread runs in its own terminal window. 
 
-  * This is in contrast to the **parallel** package, which runs multiple
-    R instances but in which those instances run without terminals,
-    inaccessible to the user. 
+  * This is in contrast to the **parallel** package, which runs 
+    multiple R instances but in which those instances run without 
+    terminals, inaccessible to the user. 
 
   * This is to facilitate users debugging their application code. 
+    Users can use ordinary R debugging commands in the terminal windows.
 
   * But use of the included **tmux** wrappers makes managing
     the R instances much more convenient, by automating the process 
-   of setting up the windows, running R in them, etc.
+    of setting up the windows, running R in them, etc.
 
     Moreover, use of the wrappers is necessary when writing Rthreads
-    code as R scripts, to be saved in .R files etc., rather than one-offs.
+    code as R scripts, to be saved in .R files etc., rather than 
+    interactive one-offs.
 
+<!--
 * Setup: First **rthSetup** is run in the first window, and
   then **rthJoin** is run in each window including the first.
   Again, this is automated via the **tmux** wrappers.
 
   Now call your application function code in each window (again, can
   be done via a single **tmux** wrapper call).
+-->
 
-* Some in the computing field believe that one should avoid
-  having global variables. However, globals are the essence of
-  threading. In R, the generally accepted implementation of globals 
-  is to place them in an R environment, which we do here: Shared 
-  variables are in the environment **sharedGlobals**.
+* Global variables are the essence of threading. In R, the generally 
+  accepted implementation of globals is to place them in an R 
+  environment, which we do here: Shared variables are in the 
+  environment **sharedGlobals**.
 
 ## Installation
 
@@ -174,7 +176,7 @@ Here is what happens:
 * Step 1: Set up 2 threads (which will be numbered 0 and 1).
 
 * Step 2: Each thread checks in. The first thread has already done so,
-  so just one thread checks in this case, but there still must be code
+  so just one thread checks in here in this case, but there still must be code
   that forces even thread 0 to wait until everyone has joined. 
   Each thread, upon checking in, will then wait for the others to check
   in; you'll see whichever thread you called **rthJoin** on first won't
@@ -185,7 +187,8 @@ Here is what happens:
 
 * Step 4: Thread 1 attaches **x**.
 
-* Step 5: We view **x** from each thread, seeing the value 3.
+* Step 5: We view **x** from each thread, seeing the value 3 in
+  both cases, illustrating the shared nature of that variable..
 
 * Step 6: Thread 1 changes the value of **x** to 8.
 
@@ -210,7 +213,14 @@ the original R window, normally it would be stored in a .R file (or IDE
 project), and executed by running **source** or similar on the file or
 project.
 
-First, start a **tmux** session in a terminal window as above. Then:
+First, start a **tmux** session, by typing 
+
+``` bash
+tmux new -s 'abc'
+```
+
+in a terminal window; the **tmux** session name will be 'abc'. Then
+in your original R window (or R console etc.), type
 
 ``` r
 
@@ -222,8 +232,9 @@ tmRthreadsInit(2)
 tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
 # thread 1, attach shared x 
 tmSendKeys('abc','rthAttachSharedVar("x")',1)
-tmSendKeys('abc','sharedGlobals[["x"]][,]')  # see below note re [,] etc.
-# thread 0, change x to 2
+# take a look at x (see below note re [,] etc.)
+tmSendKeys('abc','sharedGlobals[["x"]][,]') # no thread spec., do all
+# thread 1, change x to 2
 tmSendKeys('abc','rthSGset("x",1,1,2)',1)  
 # check that all threads see the new value
 tmSendKeys('abc','rthSGget("x",1,1)')
