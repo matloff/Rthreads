@@ -1,11 +1,13 @@
 # Rthreads: a Threads(-Like) Package for R!
 
-# Filling an Important Gap
+# Threading and Rthreads at a Glance
+
+## Filling an Important Gap
 
 * *Threading* is a major mechanism for parallel operations in the world
   of computing.
 
-* Using C/C++, a popular threading library is OpenMP.
+* In C/C++, a popular threading library is OpenMP.
 
 * R does not have native threading.
 
@@ -13,8 +15,10 @@
   like **data.table** must rely on threads at the C++ level (and
   only implementing specific functions).
 
-* Alternative to threads is *message-passing*, e.g. R's **parallel**
-  package, including via **foreach** interface.
+* An alternative to threads is *message-passing*, e.g. R's **parallel**
+  package, including via interfaces such as **foreach** and **futures**.
+  However, message-passing approaches may run slowly due to the overhead
+  of sending messages.
 
 * Threaded coding tends to be clearer and produce greater speedup,
   compared to message-passing.
@@ -22,7 +26,8 @@
 * Thus having a threads capability in R would greatly enhance
   R's capabilities in parallel processing.
 
-# What Is the Difference between Threading and Message Passing?
+<!-- 
+## What Is the Difference between Threading and Message Passing?
 
 * Say we are on a quad-core machine. Here is an overview of the two
   paradigms (lots of variants):
@@ -76,8 +81,9 @@
     Interpreter Lock* disallows more than one thread running at a time.
     However, the newest version of Python has an experimental GIL-less
     option.
+-->
 
-# Rthreads Implementation
+## Rthreads Implementation
 
 * True physical shared RAM, via **bigmemory** package.
 
@@ -88,11 +94,12 @@
 * Coding style and performance essentially equivalent to
   that of "threaded R" if it were to exist.
 
-* Each thread is a separate instance of R.
+* Each thread is a separate instance of R. These can be accessed 
+  individually or via included **tmux** wrappers.
 
 * Formerly the **Rdsm** package, but fully rewritten.
 
-# How Rthreads Works
+## How Rthreads Works
 
 * The sole data type is matrix (or vectors, as one-column matrices), a
   constraint due to **bigmemory**. A matrix  must be explicitly written with
@@ -100,16 +107,18 @@
 
 * The related **synchronicity** package provides mutex support.
 
-* Each thread must run in its own terminal window.
+* Each thread runs in its own terminal window (or equivalent, e.g.
+  in the RStudio Console).
 
-  * This is to facilitate debugging application code. 
+  * This is in contrast to the **parallel** package, which runs multiple
+    R instances but in which those instances run without terminals,
+    inaccessible to the user. 
 
-    Note: Parallel programming is hard, in any form, and thus one may 
-    spend much more time debugging code than writing it.
+  * This is to facilitate users debugging their application code. 
 
-  * But use of the included **tmux** wrappers makes this much more
-    convenient, by automating the process of setting up the windows,
-    running R in them, etc.
+  * But use of the included **tmux** wrappers makes managing
+    the R instances much more convenient, by automating the process 
+   of setting up the windows, running R in them, etc.
 
     Moreover, use of the wrappers is necessary when writing Rthreads
     code as R scripts, to be saved in .R files etc., rather than one-offs.
@@ -127,7 +136,7 @@
   is to place them in an R environment, which we do here: Shared 
   variables are in the environment **sharedGlobals**.
 
-# Installation
+## Installation
 
 ``` r
 devtools::install_github('https://github.com/matloff/Rthreads')
@@ -205,7 +214,7 @@ First, start a **tmux** session in a terminal window as above. Then:
 
 ``` r
 
-# spit tmux window vertically into 2 panes, one for each thread 
+# split tmux window into 2 windows, one for each thread 
 # to be created; start R and Rthreads in them, 
 # and create the threads
 tmRthreadsInit(2)  
@@ -230,16 +239,47 @@ A shared variable **x** is a **bigmemory** object, which is a pointer to
 the corresponding matrix. So to access the matrix, we need to specify
 row and column numbers, or for the full matrix, [,].
 
-# Example: Sorting many long vectors
+The **tmRthreadsInit** function has a lot to do. It creates the various
+**tmux** windows, runs R in them, and handles the thread checkins.
 
-(Note: The code for all of the examples here are in **inst/examples**.)
+*Multiplexing windows:*
+
+What does "creating the **tmux** windows mean? What had been a single
+window will now become two or more, with the number of windows being
+equal to the number of threads. So, each thread runs in its own window.
+But these windows occupy the same physical real estate on your screen,
+with only one appearing at a time; we say that they are *multiplexed*.
+The instances of R running in these windows continue executing, even
+though only one thread is visible at a time.
+
+To manually switch from viewing one thread to another, type ctrl-b n or
+ctrl-b p ('next' and 'previous'). This can be done programmatically as
+well.
+
+The **tmux** system can also split windows rather than multiplexing
+them. One window is split into one or more, either horizontally or
+vertically. That has the advantage of having all thread actions visible
+at once, but since one typically runs at least four threads (on a 4-core
+machine), it occupies too much space.
+
+# Examples
+
+In each example, start a **tmux** window in addition to an R window (or
+R Console in an IDE etc.). In the latter, run
+
+``` r
+library(Rthreads)
+tmRthreadsInit(2)  # argument is number of threads
+```
+
+## Example: Sorting many long vectors
+
+(Note: The code for all of the examples here are in **inst/examples**,
+or in the package code itself.)
 
 We have a number of vectors, each to be sorted.
 
 ``` r
-# threads configuration: run rthSetup(nThreads=2) or other number
-# of threads
-
 # a general issue in parallel computation is that of "load balance,"
 # meaning that each thread ends up doing approximately the same amount
 # of work; here we aim for that via dynamic thread assignment, but if we
@@ -249,13 +289,13 @@ We have a number of vectors, each to be sorted.
 setup <- function(vecLengths=1000)  # run in thread 0
 {
    rthMakeSharedVar('nextRowNum',1,1)
-   rthMakeSharedVar('m',10,vecLengths+1)
+   rthMakeSharedVar('m',10,vecLengths+1,NA)  # will be our vectors to sort
    # generate vectors to be sorted, of different sizes
    tmp <- c(round(0.3*vecLengths),vecLengths)
    set.seed(9999)
    nvals <- sample(tmp,10,replace=TRUE)  # lengths of 10 vectors to sort
-   m <- sharedGlobals$m
-   for (i in 1:10) {
+   m <- sharedGlobals$m  
+   for (i in 1:10) {  # fill in the vector
       n <- nvals[i]
       m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
    }
@@ -265,14 +305,15 @@ setup <- function(vecLengths=1000)  # run in thread 0
 doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
-    if (myGlobals$myID != 0) {
-        rthAttachSharedVar("nextRowNum")
-        rthAttachSharedVar("m")
-    } 
+   myID <- rthMyID()
+   if (myID != 0) {
+      rthAttachSharedVar("nextRowNum")
+      rthAttachSharedVar("m")
+   } 
    
    m <- sharedGlobals$m
 
-   rowNum <- myGlobals$myID+1  # my first vector to sort
+   rowNum <- myID+1  # my first vector to sort
 
    while (rowNum <= nrow(m)) {
       # as illustration of parallel operation, see which threads execute
@@ -284,31 +325,28 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       rowNum <- rthAtomicInc('nextRowNum') 
    }
 
-   rthBarrier()  # not really needed
-
+   rthBarrier()  
 }
 ```
 
-To run, say with just 2 threads:
+To run:
 
-1. Let's refer to the 2 terminal windows as W0 and W1.
+``` r
+# read in app code
+tmSendKeys('abc','rthSrcExamples("Sorts.R")')
+# run 'setup' in thread 0
+tmSendKeys('abc','setup()',0)
+# run 'doSorts' in all threads 
+tmSendKeys('abc','doSorts()')
+```
 
-2. Load the code for this example.
+To check results:
 
-3. Start **Rthreads** as shown above.
+``` r
+tmSendKeys('abc','rthSGget("m",cols=1:5)')
+```
 
-   In W0, run
-
-   ``` r
-   setup()
-   ```
-
-   This sets up the various shared variables for this example, including
-   **m**, our data matrix. Each row will contain a vector to be sorted.
-
-4. In both W0 and W1, run **doSorts()** to do the sorting.
-
-   Sorted rows are now available in **sharedGlobals$m**.
+Sure enough, the rows appear to be in ascending numerical order.
 
 Overview of the code:
 
@@ -365,7 +403,7 @@ Overview of the code:
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
 
-# Example: Missing value imputation
+## Example: Missing value imputation
 
 Here the application is imputation of NAs in a large dataset. Note that
 I've kept it simple, so as to best illustrate the parallelization
@@ -476,7 +514,7 @@ doImputation <- function()
 
 An example and directions for running it are given in the code comments.
  
-# Example: Shortest paths in a graph
+## Example: Shortest paths in a graph
 
 We have a *graph* or *network*, consisting of people, cities or
 whatever, with links between some of them, and wish to find the shortest
