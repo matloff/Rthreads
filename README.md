@@ -148,8 +148,7 @@ devtools::install_github('https://github.com/matloff/Rthreads')
 
 We first present use of the package "by hand," i.e. without the
 **tmux** wrappers. This is the inconvenient approach, but it illustrates
-the actions of the package well. We then present usage with the
-wrappers, the standard way to use the package.
+the actions of the package well. 
 
 ## A Run-through "By Hand"
 
@@ -206,21 +205,48 @@ Here is what happens:
 done with thread 0 here, that thread does NOT play the role of a
 "manager" as in message-passing. All threads play symmetric roles.
 
-## The Same Example But Using the Convenience Wrappers
+## Using the tmux Convenience Wrappers
 
-Although this code can be executed by simply copying-and-pasting it into
-the original R window, normally it would be stored in a .R file (or IDE
-project), and executed by running **source** or similar on the file or
-project.
 
-First, start a **tmux** session, by typing 
+As is usual with writing R apps, Rthreads code normally is stored in a
+.R file or IDE project, and executed by running **source** or similar on
+the file or project. The **tmux** wrappers are normally not in the app
+code itself; instead, they are used for managing the running of the
+Rthreads app, as follows.
+
+First, one starts a **tmux** session, by typing 
 
 ``` bash
 tmux new -s 'abc'
 ```
 
-in a terminal window; the **tmux** session name will be 'abc'. Then
-in your original R window (or R console etc.), type
+in a terminal window; the **tmux** session name will be 'abc'. Then in
+one's original R window (or R console etc.), one first runs
+**tmRthreadsInit**. Say we call **tmRthreadsInit(2)**, indicating that
+we wish to run 2 threads. This automation saves us a ton of work that we
+would otherwise do by hand, as seen above. The call does the following:
+
+* It turns the **tmux** window into 2 windows, one for each thread.
+
+* It starts R in each window, executes **library(Rthreads)** there.
+
+* It runs **rthSetup** in the thread-0 window,
+
+* It runs **rthJoin** in both windows.
+
+We can then use **tmSendKeys** to launch our Rthreads app in all
+threads. For instance, in a sorting example to presented below,
+our app is a function **doSorts**. In our R window, we run
+
+``` r
+tmSendKeys('abc','doSorts()')
+```
+
+which sends the strong 'doSorts()' to all threads. (The third argument
+by default is to send to all threads; we can also specify individual
+threads.)
+
+<!-- 
 
 ``` r
 
@@ -228,9 +254,9 @@ in your original R window (or R console etc.), type
 # to be created; start R and Rthreads in them, 
 # and create the threads
 tmRthreadsInit(2)  
-# thread 0, create shared x 
+# at thread 0, create shared x 
 tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
-# thread 1, attach shared x 
+# at thread 1, attach shared x 
 tmSendKeys('abc','rthAttachSharedVar("x")',1)
 # take a look at x (see below note re [,] etc.)
 tmSendKeys('abc','sharedGlobals[["x"]][,]') # no thread spec., do all
@@ -240,18 +266,7 @@ tmSendKeys('abc','rthSGset("x",1,1,2)',1)
 tmSendKeys('abc','rthSGget("x",1,1)')
 # etc.
 ```
-
-Explanation of **sharedGlobals** etc.: The shared variables are stored
-in the R environment of that name. So they can be read or written to
-directly in that environment, as seen here, providing a direct
-alternative to **rthSGset** and **rthSGget**.
-
-A shared variable **x** is a **bigmemory** object, which is a pointer to
-the corresponding matrix. So to access the matrix, we need to specify
-row and column numbers, or for the full matrix, [,].
-
-The **tmRthreadsInit** function has a lot to do. It creates the various
-**tmux** windows, runs R in them, and handles the thread checkins.
+-->
 
 *Multiplexing windows:*
 
@@ -265,13 +280,24 @@ though only one thread is visible at a time.
 
 To manually switch from viewing one thread to another, type ctrl-b n or
 ctrl-b p ('next' and 'previous'). This can be done programmatically as
-well.
+well. It can also be done by mouse click: ctrl b :set -g mouse on.
 
 The **tmux** system can also split windows rather than multiplexing
 them. One window is split into one or more, either horizontally or
 vertically. That has the advantage of having all thread actions visible
 at once, but since one typically runs at least four threads (on a 4-core
 machine), it occupies too much space.
+
+## Misc.
+
+* The shared variables are stored in the R environment **sharedGlobals**. 
+  So within Rthreads code, they can be read or written to directly in 
+  that environment, or via **rthSGset** and **rthSGget**. From the R 
+  '>' prompt, one of the latter two must be used.
+
+* A shared variable **x** is a **bigmemory** object, which is a pointer to
+  the corresponding matrix. So to access the matrix, we need to specify
+  row and column numbers, or for the full matrix, [,].
 
 # Examples
 
@@ -380,26 +406,23 @@ Overview of the code:
 
 * Here is the internal code for **rthAtomicInc**:
 
-  ``` r
-  rthAtomicInc <- function(sharedV,mtx='mutex0',increm=1)
-  {
-     mtx <- sharedGlobals[[mtx]]
-     synchronicity::lock(mtx)
-     shrdv <- sharedGlobals[[sharedV]]
-     oldVal <- shrdv[1, ]
+  ``` r 
+  rthAtomicInc <- function(sharedV,mtx='mutex0',increm=1) { 
+     mtx <- sharedGlobals[[mtx]] 
+     synchronicity::lock(mtx) 
+     shrdv <- sharedGlobals[[sharedV]] 
+     oldVal <- shrdv[1, ] 
      newVal <- oldVal + increm
-     shrdv[1, ] <- newVal
+     shrdv[1, ] <- newVal 
      sharedGlobals[[sharedV]] <- shrdv
-     synchronicity::unlock(mtx)
-     return(oldVal)
-  }  
+     synchronicity::unlock(mtx) return(oldVal) }  
   ```
   
   The key here is use of a *mutex* (short for "mutual exclusion"), which
-  can be locked and unlocked. While locked, no other thread is allowed to
-  enter the given section of code, i.e. the lines beteween the lock and
-  unlock operations.  (Termed a *critical section* in the parallel
-  processing field.)
+  can be locked and unlocked. While locked by one thread, no other thread
+  is allowed to enter the given section of code, i.e. the lines beteween
+  the lock and unlock operations.  (Termed a *critical section* in the
+  parallel processing field.)
 
   If one thread has locked the mutex and another thread reaches the
   lock line, it will be blocked until the mutex is unlocked. 
