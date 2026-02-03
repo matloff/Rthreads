@@ -228,21 +228,23 @@ would otherwise do by hand, as seen above. The call does the following:
 
 * It turns the **tmux** window into 2 windows, one for each thread.
 
-* It starts R in each window, executes **library(Rthreads)** there.
+* It starts R in each window, and executes **library(Rthreads)** in each
+  one.
 
 * It runs **rthSetup** in the thread-0 window,
 
 * It runs **rthJoin** in both windows.
 
 We can then use **tmSendKeys** to launch our Rthreads app in all
-threads. For instance, in a sorting example to presented below,
-our app is a function **doSorts**. In our R window, we run
+threads. For instance, in a sorting example to be presented below,
+our app is a function **doSorts**, containing Rthreads calls and otherR
+code. In our R window, we run
 
 ``` r
 tmSendKeys('abc','doSorts()')
 ```
 
-which sends the strong 'doSorts()' to all threads. (The third argument
+which sends the string 'doSorts()' to all threads. (The third argument
 by default is to send to all threads; we can also specify individual
 threads.)
 
@@ -270,13 +272,14 @@ tmSendKeys('abc','rthSGget("x",1,1)')
 
 *Multiplexing windows:*
 
-What does "creating the **tmux** windows mean? What had been a single
-window will now become two or more, with the number of windows being
-equal to the number of threads. So, each thread runs in its own window.
-But these windows occupy the same physical real estate on your screen,
-with only one appearing at a time; we say that they are *multiplexed*.
-The instances of R running in these windows continue executing, even
-though only one thread is visible at a time.
+What does turning "the **tmux** window into 2 windows" mean? 
+
+What had been a single window will now become two or more, with the
+number of windows being equal to the number of threads. So, each thread
+runs in its own window.  But these windows occupy the same physical real
+estate on your screen, with only one appearing at a time; we say that
+they are *multiplexed*.  The instances of R running in these windows
+continue executing, even though only one thread is visible at a time.
 
 To manually switch from viewing one thread to another, type ctrl-b n or
 ctrl-b p ('next' and 'previous'). This can be done programmatically as
