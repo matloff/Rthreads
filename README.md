@@ -305,26 +305,21 @@ machine), it occupies too much space.
 # Examples
 
 In each example, start a **tmux** window in addition to an R window (or
-R Console in an IDE etc.). In the latter, run
+R Console in an IDE etc.). In the R window, run
 
 ``` r
 library(Rthreads)
 tmRthreadsInit(2)  # argument is number of threads
 ```
 
-## Example: Sorting many long vectors
+The code for all of the examples here are in **inst/examples**,
+or in the package code itself.
 
-(Note: The code for all of the examples here are in **inst/examples**,
-or in the package code itself.)
+## Example: Sorting many long vectors
 
 We have a number of vectors, each to be sorted.
 
 ``` r
-# a general issue in parallel computation is that of "load balance,"
-# meaning that each thread ends up doing approximately the same amount
-# of work; here we aim for that via dynamic thread assignment, but if we
-# had a very large number of rows, random pre-assignment would probably
-# work fine, and would not have the overhead of engaging with a mutex
 
 setup <- function(vecLengths=1000)  # run in thread 0
 {
@@ -337,7 +332,7 @@ setup <- function(vecLengths=1000)  # run in thread 0
    m <- sharedGlobals$m  
    for (i in 1:10) {  # fill in the vector
       n <- nvals[i]
-      m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is length
+      m[i,1:(n+1)] <- c(n,runif(n))  # 1st column is vector length
    }
    sharedGlobals$nextRowNum[1,1] <- sharedGlobals$nThreads[1,1] + 1
 }
@@ -390,8 +385,7 @@ Sure enough, the rows appear to be in ascending numerical order.
 
 Overview of the code:
 
-* Each thread works on one row of **m** at a time. (See comments in the
-  code for other approaches.)
+* Each thread works on one row of **m** at a time. 
 
 * When a thread finishes sorting a row, it determines the next row to 
   sort by inspecting the shared variable **nextRowNum**. It increments that

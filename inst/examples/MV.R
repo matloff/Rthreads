@@ -4,28 +4,6 @@
 
 # mainly for illustrating barriers
 
-# example
-
-#  at thread 0 do
-#  
-#     data(NHISlarge)
-#     nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
-#     nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
-#     setup(nhis.large)
-#  
-#  at all threads do
-#  
-#     doImputation()
-#  
-#  at any thread do
-#  
-#     dta <- rthSGget('dta')
-#     head(dta)
-#  
-#  at some other thread do
-#  
-#     head(nhis.large)
-
 setup <- function(dta)  # run in thread 0
 {
    z <- dim(dta)
@@ -37,12 +15,12 @@ setup <- function(dta)  # run in thread 0
 
 doImputation <- function()  
 {
-   if (myGlobals$myID > 0) {
+   myID <- rthMyID()
+   if (myID > 0) {
       rthAttachSharedVar('dta')
    }
    nThreads <- sharedGlobals$nThreads[1,1]
    dta <- sharedGlobals$dta
-   myID <- myGlobals$myID
    nc <- ncol(dta)
 
    # each thread is assigned columns to work on
