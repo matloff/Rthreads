@@ -543,6 +543,15 @@ doImputation <- function()
 
 ```
 
+To run:
+
+``` r
+tmSendKeys('abc','rthSrcExamples("MV.R")')
+tmSendKeys('abc','data(nhis.small)')
+tmSendKeys('abc','setup(nhis.small)',0)
+tmSendKeys('abc','doImputation()')
+```
+
 An example and directions for running it are given in the code comments.
  
 ## Example: Shortest paths in a graph
