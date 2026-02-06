@@ -11,7 +11,7 @@ setup <- function(dta)  # run in thread 0
    z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
-   rthMakeSharedVar('dta',nr,nc,initVal=nhis.large)
+   rthMakeSharedVar('dta',nr,nc,initVal=dta)
    rthInitBarrier()
 }
 

@@ -463,33 +463,6 @@ the original version.
 Here is the code:
 
 ``` r
-# NA imputation, simple use of linear regression, each column's NAs
-# replaced by fitted values
-
-# mainly for illustrating barriers
-
-# example
-
-#  at thread 0 do
-#  
-#     data(NHISlarge)
-#     nhis.large <- regtools::factorsToDummies(nhis.large,dfOut=FALSE)
-#     nhis.large <- nhis.large[,-(1:4)]  # omit ID etc.
-#     setup(nhis.large)
-#  
-#  at all threads do
-#  
-#     doImputation()
-#  
-#  at any thread do
-#  
-#     dta <- rthSGget('dta')
-#     head(dta)
-#  
-#  at some other thread do
-#  
-#     head(nhis.large)
-
 setup <- function(dta)  # run in thread 0
 {
    z <- dim(dta)
@@ -547,8 +520,8 @@ To run:
 
 ``` r
 tmSendKeys('abc','rthSrcExamples("MV.R")')
-tmSendKeys('abc','data(nhis.small)')
-tmSendKeys('abc','setup(nhis.small)',0)
+tmSendKeys('abc','data(NHISlarge)')
+tmSendKeys('abc','setup(nhis.large)',0)
 tmSendKeys('abc','doImputation()')
 ```
 
