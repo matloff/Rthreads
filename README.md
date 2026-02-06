@@ -270,7 +270,7 @@ tmSendKeys('abc','rthSGget("x",1,1)')
 ```
 -->
 
-*Multiplexing windows:*
+### Multiplexing Windows
 
 What does turning "the **tmux** window into 2 windows" mean? 
 
@@ -290,6 +290,15 @@ them. One window is split into one or more, either horizontally or
 vertically. That has the advantage of having all thread actions visible
 at once, but since one typically runs at least four threads (on a 4-core
 machine), it occupies too much space.
+
+### Bypassing tmux
+
+Though the **tmux** wrappers greatly reduce a user's work, e.g. by
+sending the same command to all threads, the threads are still running
+ordinary R. Thus user can still type in commands directly into the
+various thread windows. This is very useful, almost mandatory in
+debugging, since one normally will execute different debugging commands
+to each thread.
 
 ## Misc.
 
@@ -434,6 +443,8 @@ Overview of the code:
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
 
+### Comparison to the 'parallel' Package
+
 ## Example: Missing value imputation
 
 Here the application is imputation of NAs in a large dataset. Note that
@@ -463,23 +474,30 @@ the original version.
 Here is the code:
 
 ``` r
+# NA imputation, simple use of linear regression, each column's NAs
+# replaced by fitted values
+
+# mainly for illustrating barriers
+
 setup <- function(dta)  # run in thread 0
 {
+
+   dta <- regtools::factorsToDummies(dta,omitLast=FALSE,dfOut=FALSE)
    z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
-   rthMakeSharedVar('dta',nr,nc,initVal=nhis.large)
+   rthMakeSharedVar('dta',nr,nc,initVal=dta)
    rthInitBarrier()
 }
 
 doImputation <- function()  
 {
-   if (myGlobals$myID > 0) {
+   myID <- rthMyID()
+   if (myID > 0) {
       rthAttachSharedVar('dta')
    }
    nThreads <- sharedGlobals$nThreads[1,1]
    dta <- sharedGlobals$dta
-   myID <- myGlobals$myID
    nc <- ncol(dta)
 
    # each thread is assigned columns to work on
@@ -512,6 +530,8 @@ doImputation <- function()
       }
    }
 
+   dta
+
 }
 
 ```
@@ -522,7 +542,7 @@ To run:
 tmSendKeys('abc','rthSrcExamples("MV.R")')
 tmSendKeys('abc','data(NHISlarge)')
 tmSendKeys('abc','setup(nhis.large)',0)
-tmSendKeys('abc','doImputation()')
+tmSendKeys('abc','w <- doImputation()')
 ```
 
 An example and directions for running it are given in the code comments.

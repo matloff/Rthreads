@@ -7,7 +7,7 @@
 setup <- function(dta)  # run in thread 0
 {
 
-   dta <- regtools::factorsToDummies(dta,omitLast=FALSE,outDF=FALSE)
+   dta <- regtools::factorsToDummies(dta,omitLast=FALSE,dfOut=FALSE)
    z <- dim(dta)
    nr <- z[1]
    nc <- z[2]
