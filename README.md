@@ -15,19 +15,25 @@
   like **data.table** must rely on threads at the C++ level (and
   only implementing specific functions).
 
-* An alternative to threads is *message-passing*, e.g. R's **parallel**
-  package, including via interfaces such as **foreach** and **futures**.
-  However, message-passing approaches may run slowly due to the overhead
-  of sending messages.
-
 * Threaded coding tends to be clearer and produce greater speedup,
   compared to message-passing.
 
 * Thus having a threads capability in R would greatly enhance
   R's capabilities in parallel processing.
 
-<!-- 
-## What Is the Difference between Threading and Message Passing?
+
+## Threading Versus Message Passing
+
+* Threading, i.e. *shared-memory* programming, is in contrast to
+  *message-passing*, e.g. R's **parallel** package (including via 
+  interfaces such as **foreach** and **futures**).  
+
+* However, message-passing approaches may run slowly due to the 
+  overhead of sending messages. Moreover, message-passing code
+  tends to be more difficult to write and harder to read, due to it 
+  being cluttered with extraneous communication code.
+
+<!--
 
 * Say we are on a quad-core machine. Here is an overview of the two
   paradigms (lots of variants):
@@ -360,8 +366,6 @@ doSorts <- function()  # run in all threads, maybe with system.time()
    rowNum <- myID+1  # my first vector to sort
 
    while (rowNum <= nrow(m)) {
-      # as illustration of parallel operation, see which threads execute
-      # sorts on which rows
       print(rowNum)
       n <- m[rowNum,1]  # vector length
       x <- m[rowNum,2:(n+1)]
@@ -391,6 +395,9 @@ tmSendKeys('abc','rthSGget("m",cols=1:5)')
 ```
 
 Sure enough, the rows appear to be in ascending numerical order.
+Also, the output from **print** shows that indeed, the operation was
+done in parallel, i.e. different threads handled different rows of
+**m**.
 
 Overview of the code:
 
@@ -443,15 +450,50 @@ Overview of the code:
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
 
-### Comparison to the 'parallel' Package
+### Comparison to the 'parallel' Package/Message-Passing Paradigm
+
+As noted earlier, threaded code tends to be clearer than
+message-passing, due to the latter's being cluttered with extraneous
+calls to communication functions. Let's explore this in terms of
+which extra calls would be needed in the above example.
+
+The **parallel** package (actually now an integral part of R, no longer
+a formal package) works as follows:
+
+* You run the code from R, which we will term the *manager*.
+
+* There are unseen R processes behind the scenes, which we will term
+  *workers*.
+
+* Your manager code contains calls to **parallel** functions that send
+  commands to the workers. 
+
+* Responses come back to the manager in the form of return values to
+  those functions.
+
+* The manager pieces together those responses to form the solution.
+
+The **parallel** code for our above sorting example might include the
+following extra calls (in the cluster case):
+
+* A call to **clusterExport** to send **m** to the workers.
+
+* Another call to **clusterExport** to send a function to the workers to
+  define how they process the data, in this case basically telling them
+  that they will call **sort**.
+
+* A call to **clusterCall**, telling the workers to execute that
+  function. An R **list** abject is returned to the manager.
+
+That last call is not really "extra," since it is analogous to our call
+to **sort** in our threaded code. But it is less direct.
+
+The reader should give careful thought as to how the shared-memory
+paradigm enabled simpler code.
 
 ## Example: Missing value imputation
 
-Here the application is imputation of NAs in a large dataset. Note that
-I've kept it simple, so as to best illustrate the parallelization
-principles involved; no implication is intended that this is an
-effective imputation method, nor for that matter is the parallelization
-optimal. 
+Here the application is imputation of NAs in a large dataset. 
 
 We have a large data frame with numerical entries, but with NA values
 here and there. A common imputation approach for a given column is to run
@@ -462,14 +504,32 @@ values.
 We will do this column by column, with each thread temporarily saving
 its imputed values rather than immediately writing them back
 to the dataset. Only after all threads have computed imputations in the
-given round do we update the actual dataset. 
+do we update the actual dataset. 
 
-The purpose of this example is mainly to illustrate the concept of a
-*barrier*, an important threads concept. When a thread reaches that
-line, it may not proceed further until *all* threads have reached the
-line. As noted in the code comments, we need a situation in which
+And that restriction on the timing of writing back the imputed values is
+the purpose of this example. In order to enforce that restriction, one
+uses a *barrier*, an important threads concept. When a thread reaches
+that line, it may not proceed further until *all* threads have reached
+the line. As noted in the code comments, we need a situation in which
 one thread changes **dta** while other threads are still making use of
 the original version.
+
+Note that I've kept the code simple, so as to best illustrate the
+parallelization principles involved; no implication is intended that
+this is an effective imputation method, nor for that matter that the
+parallelization optimal. 
+
+For instance, note the comment:
+
+``` r
+# note: if a row in dta[,-col] has more than 1 NA (the
+# value to be predicted and one predictor), its predicted 
+# (and thus imputed)  value will still be NA
+``
+
+Thus some NAs may go unimputed. One solution could be to iterate the
+process. Another would be to predict from fewer columns in the case of
+such rows.
 
 Here is the code:
 
@@ -510,8 +570,9 @@ doImputation <- function()
       if (length(NAelements) > 0) {
          lmOut <- lm(dta[,col] ~ dta[,-col])
          imputes <- lmOut$fitted.values[NAelements]
-         # note: if a row in dta[,-col] has more than 1 NA,
-         # its predicted (and thus imputed)  value will still be NA
+         # note: if a row in dta[,-col] has more than 1 NA (the
+         # value to be predicted and one predictor), its predicted 
+         # (and thus imputed)  value will still be NA
          tmp <- 
             list(colNum=col,imputes=imputes,NAelements=NAelements)
       } else tmp <- NULL
@@ -530,7 +591,7 @@ doImputation <- function()
       }
    }
 
-   dta
+   dta  # return imputed data
 
 }
 
