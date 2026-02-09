@@ -641,9 +641,12 @@ findMinDists <- function(adjMat,destVertex)
    adjmPow <- adjm
    n <- nrow(adjm)
 
-   myID <- myGlobals$myID
+   myID <- rthMyID()
+   # a key object will be the vector 'done'; 0 in element i means we
+   # have not found a path to i yet; if this element is positive, it is
+   # the length of the shortest path to i
    if (myID == 0) 
-      rthMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
+      rthMakeSharedVar('done',n,1,initVal=rep(0,n))  
    rthBarrier()
    if (myID > 0) {
       rthAttachSharedVar('done')
@@ -671,7 +674,6 @@ findMinDists <- function(adjMat,destVertex)
       if (iter > 1) adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
       for (myRow in myRows) {
          if (done[myRow,1] > 0) next 
-         # this vertex myRow not decided yet as to a path to destVertex
          if (adjmPow[myRow,destVertex] > 0) {  # success!
             done[myRow,1] <- iter
          } 
@@ -695,12 +697,12 @@ To run:
 
 ``` r
 tmSendKeys('abc','rthSrcExamples("MinDists.R")')
-adjMat <- rbind(
+tmSendKeys('abc','adjMat <- rbind(
              c(0,1,1,0,0),
              c(0,0,0,1,0),
              c(0,1,0,1,1),
              c(1,0,0,0,1),
-             c(0,0,1,0,0))
+             c(0,0,1,0,0))')
 tmSendKeys('abc','setup()',0)
 tmSendKeys('abc','findMinDists(adjMat,5)')
 rthSGget('done')  # check output

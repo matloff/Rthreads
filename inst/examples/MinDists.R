@@ -43,7 +43,7 @@ findMinDists <- function(adjMat,destVertex)
    adjmPow <- adjm
    n <- nrow(adjm)
 
-   myID <- myGlobals$myID
+   myID <- rthMyID()
    if (myID == 0) 
       rthMakeSharedVar('done',n,1,initVal=rep(0,n))  # see above
    rthBarrier()
