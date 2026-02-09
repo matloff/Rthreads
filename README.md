@@ -525,7 +525,7 @@ For instance, note the comment:
 # note: if a row in dta[,-col] has more than 1 NA (the
 # value to be predicted and one predictor), its predicted 
 # (and thus imputed)  value will still be NA
-``
+```
 
 Thus some NAs may go unimputed. One solution could be to iterate the
 process. Another would be to predict from fewer columns in the case of
@@ -606,8 +606,6 @@ tmSendKeys('abc','setup(nhis.large)',0)
 tmSendKeys('abc','w <- doImputation()')
 ```
 
-An example and directions for running it are given in the code comments.
- 
 ## Example: Shortest paths in a graph
 
 We have a *graph* or *network*, consisting of people, cities or
@@ -621,45 +619,15 @@ vertex i to vertex j does not imply that a link exists in the opposite
 direction.  For a graph of v vertices, the *adjacency matrix* M of the
 graph is of size v X v, with the row i, column j element being 1 or 0,
 depending on whether there is a link from i to j. We also assume the
-matrix is a *directed acylic graph* (DAG), meaning that any path leading
-out of vertex i cannot return to i.
+matrix is a *acylic*, meaning that any path leading out of vertex i
+cannot return to i.
 
 In this version, we find the lengths of the shortest paths from all
-vertices to a given one. We do not find the paths themselves.  Here is
-the code:
+vertices to a given one. We do not find the paths themselves.  
+
+Here is the code:
 
 ``` r
-# to run the code after launching Rthreads, first run setup() at thread
-# 0, then findMinDists() at all nodes
-
-# NOTE: if rerun findMinDists(), say with different arguments, must
-# rerun status() first
-
-# example:
-
-# adjMat <- rbind(
-#              c(0,1,1,0,0),
-#              c(0,0,0,1,0),
-#              c(0,1,0,1,1),
-#              c(1,0,0,0,1),
-#              c(0,0,1,0,0))
-# setup()
-# findMinDists(adjMat,5)
-
-# check output:
-# rthSGget('done')
-
-# as written, code finds lengths of shortest paths, not the paths
-# themselves 
-
-# basic plan: each thread operates on its assigned set of vertices, i.e.
-# its assigned set of rows in the adjacency matrix adjm; the k-th power
-# of that matrix shows numbers of k-step paths; matrix partitioning is
-# used so that each thread calculates only its own rows in the power
-# matrices
-
-# illustrative value of the code is as an example of "embarrassing
-# parallel" computation
 
 setup <- function()  # run in thread 0
 {
@@ -723,7 +691,32 @@ findMinDists <- function(adjMat,destVertex)
 
 ```
 
+To run:
+
+``` r
+tmSendKeys('abc','rthSrcExamples("MinDists.R")')
+adjMat <- rbind(
+             c(0,1,1,0,0),
+             c(0,0,0,1,0),
+             c(0,1,0,1,1),
+             c(1,0,0,0,1),
+             c(0,0,1,0,0))
+tmSendKeys('abc','setup()',0)
+tmSendKeys('abc','findMinDists(adjMat,5)')
+rthSGget('done')  # check output
+
+```
+
 How does it work?
+
+# basic plan: each thread operates on its assigned set of vertices, i.e.
+# its assigned set of rows in the adjacency matrix adjm; the k-th power
+# of that matrix shows numbers of k-step paths; matrix partitioning is
+# used so that each thread calculates only its own rows in the power
+# matrices
+
+# illustrative value of the code is as an example of "embarrassing
+# parallel" computation
 
 A key property is that the k-th power of M tells us whether there is a
 k-link path from i to j, according to whether the row i, column j
@@ -763,41 +756,6 @@ Objects created by **bigmemory** are persistent until removed or until
 the R session ends. This can have implications if you do a number of
 runs of an **Rthreads** application. Be sure your application's **setup**
 function re-initializes **bigmemory** objects as needed.
-
-Note too that **myID** and **info** are also persistent.
-
-# Facilitating Rthreads Use via 'screen' or 'tmux'
-
-In using **Rthreads**, one needs a separate terminal window for each
-thread. Some users may have concerns over the screen real estate that is
-used.  The popular Unix (Mac or Linux) **screen** and **tmux** utilities
-can be very helpful in this regard. Basically, they allow multiple
-terminal windows to share the same screen space.
-
-Methods for automating the process of setting up the windows,
-automatically running e.g. **rthJoin** in each one, would be
-desirable.  The above utilities can accomplish this by enabling us to
-have code running in one window write a specified string to another
-window. E.g. say we are in the shell of Window A. We can do, e.g. 
-
-``` bash
-screen -S WindowBScreen
-```
-
-in Window B to start a **screen** session there. Then in Window A
-we might run
-
-``` bash
-screen -S WindowB -X stuff 'ls'$'\n'
-```
-
-and the Unix **ls** command will run in Window B just as if we had typed
-it there ourself! Moreover, we might be running R in Window A, in which
-case we can run the above shell command via R's **system** function
-
-In other words, we can for instance automate the running of
-**rthJoin** in all the windows, instead of having to type the
-command in each one.
 
 # To Learn More
 
