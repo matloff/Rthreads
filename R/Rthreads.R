@@ -153,10 +153,35 @@ rthBarrier <- function()
    }
 }
 
+# code for Matrix Coded Data Frames (MCDFs). aimed at circumventing
+# bigmemory's restriction that shared objects be (numerical) matrices; the
+# strategy is to temporarily replace an R factor indices of their levels;
+# if for instance the factor partyAffiliation has levels 'Democrat',
+# 'Republican' and 'Independent', those have codes 1, 2 and 3, and the
+# factor is replaced by a vector of values from that set; the
+# 'attributes' function is used to convert back and forth betweeen the
+# two forms
+
+dfToMcdf <- function(df) 
+{
+   dfnew <- df
+   for (i in 1:ncol(df)) {
+      col <- df[,i]
+      if (is.factor(col)) {
+         oneToN <- 1:length(levels(col))
+         dfnew[,i] <- oneToN[col]
+      }
+   }
+   dnew
+}
+
+
+
+
 # analogous to R's 'split' function; inputs a shared matrix M (specified
 # as a quoted name), and splits the rows according to the R factor
 # splitFactor; returns an R list of shared matrices (note that each is
-# just a reference, thus eligible as components of a list) 
+# just a reference) 
 
 # one can then use list functions; e.g. for output 'z'
 #
@@ -259,97 +284,16 @@ rthSplit <- function(M,splitFactor,prefix='split')
 
 }
 
-library(gtools)
-
-# threaded parallel grid search, enabling the user to pursue optimizing
-# values of tuning parameters/hyperparameters
-
-# example:
-# library(regtools)
-# data(mlb)
-# library(randomForest)
-# rthGridSearch('randomForest(Weight ~ .,data=trainData)',mlb,
-#    pars=list(nTree=c(10,100),nodesize=c(5,25,75)),5,1000)
-
-# that first string will be combined with the parameters to make an
-# executable call when run through 'evalr'
-
-# 'trainData' is the actual name of a variable in the code, data that in
-# this example will be a subject of 'mlb'
-
-# for each combination of parameter values in 'pars', the function will
-# do 'nXval' repetitions of cross-validation with test set 'testData'
-
-# 'classif' is true for classification problems, FALSE for regression
-
-# the role of 'predFtn' is as follows: 1. one can use custom loss
-# functions, e.g. (Y - predY)^2 instead of |Y - predY|; 2. for typical
-# packages, when the output of the user's call is fed directly into
-# predict(), the predicted Y values are returned, which the code here
-# assumes by default; but for packages such as 'ranger', predict()
-# returns an object whose components include the predicted values, which
-# one can accommodate with 'predFtn'
-
-rthGridSearch <- 
-   function(basicCall,data,yName,pars,nXval,nTest,classif=FALSE,predFtn=NULL)
-{
-   # form results matrix, parameter values in the first length(pars)
-   # columns and experiment results in the last two
-   combs <- do.call(expand.grid,pars)
-   combs$means <- rep(NA,nrow(combs))
-   combs$stdErrs <- rep(NA,nrow(combs))
-   combs <- as.matrix(combs)
-
-   # form shared version of combs; this eventually will hold the results
-   # of the function
-   myID <- rthMyID()  
-   if (myID == 0) {
-     rthMakeSharedVar('Combs',nrow(combs),ncol(combs),combs)
-   }
-   rthBarrier()
-   if (myID > 0) rthAttachSharedVar('Combs')
-
-   nthreads <- sharedGlobals$nThreads[1,1]
-   myRows <- parallel::splitIndices(nrow(combs),nthreads)[[myID +1]]
-
-   losses <- vector(length=nXval)
-   parNames <- names(pars)
-   ycol <- which(names(dta) == yName)
-   for (myrow in myRows) {
-      # form full call
-      theCall <- basicCall
-      for (i in 1:length(pars))
-         theCall <- 
-            paste0(theCall,',',parNames[i],'=',combs[myrow,i]) 
-      theCall <- paste0(theCall,')')
-      # do the computation for this comb
-      for (i in 1:nXval) {
-         splitTrainTest(data,nTest,yCol)  # produces trainData, testData, etc.
-         outObj <- evalr(theCall)
-         preds <- predict(outObj,testX)
-         losses[i] <- 
-            if (classif) mean(preds != testY)
-            else mean(abs(preds - testY))
-      }
-      # record outcome
-      Combs$means[myRow] <- mean(losses)
-      Combs$stdErrs[myRow] <- sd(losses)
-   }
-
-   return(as.data.frame(Combs))
-
-}
-
-splitTrainTest <- defmacro(dta,testSetSize,yCol,expr={
-     rows <- 1:nrow(dta)
+splitTrainTest <- defmacro(data,testSetSize,yCol,expr={
+     rows <- 1:nrow(data)
      testRows <- sample(rows,testSetSize)
      trainRows <- setdiff(rows,testRows)
-     testData <- dta[testRows,]
-     testY <- dta[testRows,yCol]
-     testX <- dta[testRows,-yCol]
-     trainData <- dta[trainRows,]
-     trainY <- dta[trainRows,yCol]
-     trainX <- dta[trainRows,-yCol]
+     testData <- data[testRows,]
+     testY <- data[testRows,yCol]
+     testX <- data[testRows,-yCol]
+     trainData <- data[trainRows,]
+     trainY <- data[trainRows,yCol]
+     trainX <- data[trainRows,-yCol]
    }
 )
 

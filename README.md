@@ -108,8 +108,11 @@
 ## How Rthreads Works
 
 * The sole data type is matrix (or vectors, as one-column matrices), a
-  constraint due to **bigmemory**. A matrix  must be explicitly written with
-  two (possibly empty) subscripts, e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
+  constraint due to **bigmemory**. For a workaround, see "matrix-coded
+  data frames below.
+
+* A matrix  must be explicitly written with two (possibly empty) 
+  subscripts, e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
 
 * The related **synchronicity** package provides mutex support.
 
@@ -705,20 +708,11 @@ tmSendKeys('abc','adjMat <- rbind(
              c(0,0,1,0,0))')
 tmSendKeys('abc','setup()',0)
 tmSendKeys('abc','findMinDists(adjMat,5)')
-rthSGget('done')  # check output
+tmSendKeys('abc','rthSGget("done")')  # check output
 
 ```
 
 How does it work?
-
-# basic plan: each thread operates on its assigned set of vertices, i.e.
-# its assigned set of rows in the adjacency matrix adjm; the k-th power
-# of that matrix shows numbers of k-step paths; matrix partitioning is
-# used so that each thread calculates only its own rows in the power
-# matrices
-
-# illustrative value of the code is as an example of "embarrassing
-# parallel" computation
 
 A key property is that the k-th power of M tells us whether there is a
 k-link path from i to j, according to whether the row i, column j
@@ -727,26 +721,12 @@ parallel, with each thread being responsible for a subset of rows:
 
 ``` r
 myRows <- parallel::splitIndices(n,nThreads[,])[[myID+1]]
-myRows <- setdiff(myRows,whichDEs)
 ...
 if (iter > 1) adjmPow[myRows,] <- adjmPow[myRows,] %*% adjm[,]
 ```
 
 Here we have used the fact that in a matrix product W = UV, row i of W
 is equal to the product of row i of U with V.
-
-Here is where the main work is done:
-
-``` r
-for (myRow in myRows) {
-   if (done[myRow,1] > 0) next 
-   # this vertex myRow not decided yet as to a path to destVertex
-   if (adjmPow[myRow,destVertex] > 0) {  # success!
-      done[myRow,1] <- iter
-      done[myRow,2] <- 1
-   } else {
-      ...
-```
 
 This type of application, in which the threads do not interact with each
 other--no barriers, no autoincrement etc.--is often called

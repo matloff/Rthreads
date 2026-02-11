@@ -1,24 +1,4 @@
 
-# to run the code after launching Rthreads, first run setup() at thread
-# 0, then findMinDists() at all nodes
-
-# NOTE: if rerun findMinDists(), say with different arguments, must
-# rerun status() first
-
-# example:
-
-# adjMat <- rbind(
-#              c(0,1,1,0,0),
-#              c(0,0,0,1,0),
-#              c(0,1,0,1,1),
-#              c(1,0,0,0,1),
-#              c(0,0,1,0,0))
-# setup()
-# findMinDists(adjMat,5)
-
-# check output:
-# rthSGget('done')
-
 # as written, code finds lengths of shortest paths, not the paths
 # themselves 
 
