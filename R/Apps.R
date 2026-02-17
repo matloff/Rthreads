@@ -19,24 +19,25 @@ library(gtools)
 # that first string will be combined with the parameters to make an
 # executable call when run through 'evalr'
 
-# 'trainData' is the actual name of a variable in the code, data that in
-# this example will be a subject of 'mlb'
-
 # for each combination of parameter values in 'pars', the function will
-# do 'nXval' repetitions of cross-validation with test set 'testData'
+# do 'nXval' repetitions of cross-validation with test set 'testData';
+# 'trainData' and 'testData' are names of internal variables in the
+# code, NOT specified by the user
 
 # 'classif' is true for classification problems, FALSE for regression
 
-# the role of 'predFtn' is as follows: 1. one can use custom loss
-# functions, e.g. (Y - predY)^2 instead of |Y - predY|; 2. for typical
-# packages, when the output of the user's call is fed directly into
-# predict(), the predicted Y values are returned, which the code here
-# assumes by default; but for packages such as 'ranger', predict()
-# returns an object whose components include the predicted values, which
-# one can accommodate with 'predFtn'
+# the roles of 'predFtnReg' and 'predFtnClassif' are as follows: 
+
+# althogh for typical packages, when the output of the user's call is
+# fed directly into predict(), the predicted Y values are returned,
+# which the code here assumes by default; but for packages such as
+# 'ranger', predict() returns an object whose components include the
+# predicted values, which one can accommodate with 'predFtnReg' or
+# 'predFtnClassif'
 
 rthGridSearch <- 
-   function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE,predFtn=NULL)
+   function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
+      predFtnReg=NULL,predFtnClassif=NULL)
 {
    # form results matrix, parameter values in the first length(pars)
    # columns and experiment results in the last two
@@ -61,6 +62,8 @@ rthGridSearch <-
    parNames <- names(pars)
    nPars <- length(pars)
    yCol <- which(names(dta) == yName)
+   if (!is.null(predFtnReg)) predict <- predFtnReg
+   if (!is.null(predFtnClassif)) predict <- predFtnClassif
    for (myrow in myRows) {
       # form full call
       theCall <- basicCall
