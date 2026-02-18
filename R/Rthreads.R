@@ -165,14 +165,21 @@ rthBarrier <- function()
 dfToMcdf <- function(df) 
 {
    dfnew <- df
+   attr(dfnew,'factorLevels') <- list()
+   attr(dfnew,'factorCodings') <- list()
    for (i in 1:ncol(df)) {
       col <- df[,i]
+      colName <- names(df)[i]
       if (is.factor(col)) {
-         oneToN <- 1:length(levels(col))
+         colLevels <- levels(col)
+         oneToN <- 1:length(colLevels)
          dfnew[,i] <- oneToN[col]
+         attr(dfnew,'factorLevels')[[colName]] <- colLevels
+         
       }
    }
-   dnew
+
+   dfnew
 }
 
 

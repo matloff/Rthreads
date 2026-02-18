@@ -48,9 +48,16 @@ tmSendKeys <- function(tmName,msg,recip='all')
 # Rthreads in each of the nWindows windows; assumes we had already
 # started tmux from this shell window, and are now running  R in it
 
-tmRthreadsInit <- function(nWindows,tmName='abc') 
+tmRthreadsInit <- function(nWindows,tmName='abc',vert=FALSE) 
 {
-   for (i in 1:(nWindows-1)) system('tmux new-window')
+   
+   # set up tmux windows
+   if (vert) {
+      for (i in 1:(nWindows-1))
+         system('tmux split-window -v')
+      system('tmux select-layout even-vertical')
+   } else for (i in 1:(nWindows-1)) system('tmux new-window')
+
    tmSendKeys(tmName,'R')
    tmSendKeys(tmName,'library(Rthreads)')
    setupCall <- paste0('rthSetup(',nWindows,')')
