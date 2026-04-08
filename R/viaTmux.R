@@ -52,11 +52,13 @@ tmRthreadsInit <- function(nWindows,tmName='abc',vert=FALSE)
 {
    
    # set up tmux windows
-   if (vert) {
-      for (i in 1:(nWindows-1))
-         system('tmux split-window -v')
-      system('tmux select-layout even-vertical')
-   } else for (i in 1:(nWindows-1)) system('tmux new-window')
+   if (nWindows > 1) {
+      if (vert) {
+         for (i in 1:(nWindows-1))
+            system('tmux split-window -v')
+         system('tmux select-layout even-vertical')
+      } else for (i in 1:(nWindows-1)) system('tmux new-window')
+   }
 
    tmSendKeys(tmName,'R')
    tmSendKeys(tmName,'library(Rthreads)')

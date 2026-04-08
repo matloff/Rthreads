@@ -5,6 +5,16 @@ library(synchronicity)
 sharedGlobals <- new.env(parent=emptyenv()) 
 topDir <- '/tmp'
 
+# prepare for another run, making sure the mutexes etc. are back to
+# their original values
+rthReset <- function() 
+{
+   rthSGset('nDone',1,1,0)
+   unlock(sharedGlobals[['mutex0']])
+   unlock(sharedGlobals[['barrMutex0']])
+   sharedGlobals$barrier0[1,] <- c(sharedGlobals$nThreads[,],0)
+}
+
 # executed only by thread 0
 rthSetup <- function(nThreads) 
 { 

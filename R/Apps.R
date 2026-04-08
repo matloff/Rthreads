@@ -17,7 +17,7 @@ library(gtools)
 #    "wageinc",pars=list(nTree=c(10,100),nodesize=c(5,25,75)),5,1000)')
 
 # that first string will be combined with the parameters to make an
-# executable call when run through 'evalr'
+# executable call when run, using 'evalr'
 
 # for each combination of parameter values in 'pars', the function will
 # do 'nXval' repetitions of cross-validation with test set 'testData';
