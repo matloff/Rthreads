@@ -1,8 +1,8 @@
 # Rthreads: a Threads(-Like) Package for R!
 
-# Threading and Rthreads at a Glance
+## At a Glance
 
-## Filling an Important Gap
+### Filling an important gap
 
 * *Threading* is a major mechanism for parallel operations in the world
   of computing.
@@ -16,13 +16,13 @@
   only implementing specific functions).
 
 * Threaded coding tends to be clearer and produce greater speedup,
-  compared to message-passing.
+  compared to the standard R apporach to parallelism, message-passing.
 
 * Thus having a threads capability in R would greatly enhance
   R's capabilities in parallel processing.
 
 
-## Threading Versus Message Passing
+### Threading versus message passing
 
 * Threading, i.e. *shared-memory* programming, is in contrast to
   *message-passing*, e.g. R's **parallel** package (including via 
@@ -89,7 +89,7 @@
     option.
 -->
 
-## Rthreads Implementation
+### Rthreads implementation
 
 * True physical shared RAM, via **bigmemory** package.
 
@@ -105,27 +105,27 @@
 
 * Formerly the **Rdsm** package, but fully rewritten.
 
-## How Rthreads Works
+### How Rthreads works
 
 * The sole data type is matrix (or vectors, as one-column matrices), a
-  constraint due to **bigmemory**. For a workaround, see "matrix-coded
-  data frames below.
+  constraint due to **bigmemory**. 
 
 * A matrix  must be explicitly written with two (possibly empty) 
   subscripts, e.g. **x[3,2]**, **x[,1:5]**, **x[,]**.
 
 * The related **synchronicity** package provides mutex support.
 
-* Each thread runs in its own terminal window. 
+* Each thread runs in its own visible terminal window. 
 
   * This is in contrast to the **parallel** package, which runs 
     multiple R instances but in which those instances run without 
-    terminals, inaccessible to the user. 
+    terminals, invisble and inaccessible to the user. 
 
-  * This is to facilitate users debugging their application code. 
-    Users can use ordinary R debugging commands in the terminal windows.
+  * Having accessible terminal windows facilitates users debugging 
+    their application code.  Users can use ordinary R debugging 
+    commands in the terminal windows.
 
-  * But use of the included **tmux** wrappers makes managing
+  * Use of the included **tmux** wrappers makes managing
     the R instances much more convenient, by automating the process 
     of setting up the windows, running R in them, etc.
 
@@ -257,6 +257,8 @@ which sends the string 'doSorts()' to all threads. (The third argument
 by default is to send to all threads; we can also specify individual
 threads.)
 
+To quit a **tmux** session, run **tmQuit()** in your original R window.
+
 <!-- 
 
 ``` r
@@ -294,44 +296,30 @@ To manually switch from viewing one thread to another, type ctrl-b n or
 ctrl-b p ('next' and 'previous'). This can be done programmatically as
 well. It can also be done by mouse click: ctrl b :set -g mouse on.
 
-The **tmux** system can also split windows rather than multiplexing
-them. One window is split into one or more, either horizontally or
-vertically. That has the advantage of having all thread actions visible
-at once, but since one typically runs at least four threads (on a 4-core
-machine), it occupies too much space.
-
-### Bypassing tmux
-
-Though the **tmux** wrappers greatly reduce a user's work, e.g. by
-sending the same command to all threads, the threads are still running
-ordinary R. Thus user can still type in commands directly into the
-various thread windows. This is very useful, almost mandatory in
-debugging, since one normally will execute different debugging commands
-to each thread.
-
-## Misc.
-
-* The shared variables are stored in the R environment **sharedGlobals**. 
-  So within Rthreads code, they can be read or written to directly in 
-  that environment, or via **rthSGset** and **rthSGget**. From the R 
-  '>' prompt, one of the latter two must be used.
-
-* A shared variable **x** is a **bigmemory** object, which is a pointer to
-  the corresponding matrix. So to access the matrix, we need to specify
-  row and column numbers, or for the full matrix, [,].
-
 # Examples
 
-In each example, start a **tmux** window in addition to an R window (or
-R Console in an IDE etc.). In the R window, run
+The code for all of the examples here are in **inst/examples** (there
+may be slight differences) or in the package code itself. You can load
+them via the function **rthSrcExamples**.
+
+## Run pattern 
+
+To run the first example below, type "tmux new -s 'abc'" into a terminal
+window, then type the following into your original R window:
 
 ``` r
+# start Rthreads
 library(Rthreads)
-tmRthreadsInit(2)  # argument is number of threads
+tmRthreadsInit(2)  
+# load example
+tmSendKeys('abc','rthSrcExamples("Sorts.R")')
+# run 'setup' in thread 0
+tmSendKeys('abc','setup()',0)
+# run 'doSorts' in all threads
+tmSendKeys('abc','doSorts()')
+# check results
+tmSendKeys('abc','rthSGget("m",cols=1:5)')  # rows are sorted, yes
 ```
-
-The code for all of the examples here are in **inst/examples**,
-or in the package code itself.
 
 ## Example: Sorting many long vectors
 
@@ -732,12 +720,34 @@ This type of application, in which the threads do not interact with each
 other--no barriers, no autoincrement etc.--is often called
 *embarrassingly parallel*, alluding to the fact it is so easy to code.
 
-# Regarding Repeat Runs
+# Misc.
 
-Objects created by **bigmemory** are persistent until removed or until
-the R session ends. This can have implications if you do a number of
-runs of an **Rthreads** application. Be sure your application's **setup**
-function re-initializes **bigmemory** objects as needed.
+* The shared variables are stored in the R environment **sharedGlobals**. 
+  So within Rthreads code, they can be read or written to directly in 
+  that environment, or via **rthSGset** and **rthSGget**. From the R 
+  '>' prompt, one of the latter two must be used.
+
+* A shared variable **x** is a **bigmemory** object, which is a pointer to
+  the corresponding matrix. So to access the matrix, we need to specify
+  row and column numbers, or for the full matrix, [,].
+
+* Though the **tmux** wrappers greatly reduce a user's work, e.g. by
+  sending the same command to all threads, the threads are still running
+  ordinary R. Thus user can still type in commands directly into the
+  various thread windows. This is very useful, almost mandatory in
+  debugging, since one normally will execute different debugging commands
+  to each thread.
+
+* Objects created by **bigmemory** are persistent until removed or until
+  the R session ends. This can have implications if you do a number of
+  runs of an **Rthreads** application. Be sure your application's **setup**
+  function re-initializes **bigmemory** objects as needed.
+
+* The **tmux** system can also split windows rather than multiplexing
+  them. One window is split into one or more, either horizontally or
+  vertically. That has the advantage of having all thread actions visible
+  at once, but since one typically runs at least four threads (on a 4-core
+  machine), it occupies too much space.
 
 # To Learn More
 
