@@ -153,13 +153,16 @@
 devtools::install_github('https://github.com/matloff/Rthreads')
 ```
 
+Use of the **tmux** convenience wrappers wlll require installation of
+[**tmux**, a common shell app](https://github.com/tmux/tmux/wiki/Installing).
+
 # Getting Acquainted with Rthreads (5 minutes)
 
 We first present use of the package "by hand," i.e. without the
 **tmux** wrappers. This is the inconvenient approach, but it illustrates
 the actions of the package well. 
 
-## A Run-through "By Hand"
+## A Run "By Hand"
 
 Create two terminal windows, and in each of them start R and load 
 **Rthreads**. Then go through the sequence below, where a blank entry
@@ -216,12 +219,13 @@ done with thread 0 here, that thread does NOT play the role of a
 
 ## Using the tmux Convenience Wrappers
 
-
 As is usual with writing R apps, Rthreads code normally is stored in a
 .R file or IDE project, and executed by running **source** or similar on
 the file or project. The **tmux** wrappers are normally not in the app
 code itself; instead, they are used for managing the running of the
 Rthreads app, as follows.
+
+### General operation
 
 First, one starts a **tmux** session, by typing 
 
@@ -259,27 +263,6 @@ threads.)
 
 To quit a **tmux** session, run **tmQuit()** in your original R window.
 
-<!-- 
-
-``` r
-
-# split tmux window into 2 windows, one for each thread 
-# to be created; start R and Rthreads in them, 
-# and create the threads
-tmRthreadsInit(2)  
-# at thread 0, create shared x 
-tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
-# at thread 1, attach shared x 
-tmSendKeys('abc','rthAttachSharedVar("x")',1)
-# take a look at x (see below note re [,] etc.)
-tmSendKeys('abc','sharedGlobals[["x"]][,]') # no thread spec., do all
-# thread 1, change x to 2
-tmSendKeys('abc','rthSGset("x",1,1,2)',1)  
-# check that all threads see the new value
-tmSendKeys('abc','rthSGget("x",1,1)')
-# etc.
-```
--->
 
 ### Multiplexing Windows
 
@@ -296,6 +279,27 @@ To manually switch from viewing one thread to another, type ctrl-b n or
 ctrl-b p ('next' and 'previous'). This can be done programmatically as
 well. It can also be done by mouse click: ctrl b :set -g mouse on.
 
+### Running the above intro  via **tmux**
+
+``` r
+
+# split tmux window into 2 windows, one for each thread 
+# to be created; start R and Rthreads in them, 
+# and create the threads
+tmRthreadsInit(2)  
+# at thread 0, create shared x 
+tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
+# at thread 1, attach shared x 
+tmSendKeys('abc','rthAttachSharedVar("x")',1)
+# take a look at x; could use rthSGget instead
+tmSendKeys('abc','sharedGlobals[["x"]][,]') # no thread spec., do all
+# thread 1, change x to 2
+tmSendKeys('abc','rthSGset("x",1,1,2)',1)  
+# check that all threads see the new value
+tmSendKeys('abc','rthSGget("x",1,1)')
+# etc.
+```
+
 # Examples
 
 The code for all of the examples here are in **inst/examples** (there
@@ -308,7 +312,7 @@ To run the first example below, type "tmux new -s 'abc'" into a terminal
 window, then type the following into your original R window:
 
 ``` r
-# start Rthreads
+# start Rthreads, with 2 threads
 library(Rthreads)
 tmRthreadsInit(2)  
 # load example
@@ -368,27 +372,12 @@ doSorts <- function()  # run in all threads, maybe with system.time()
 }
 ```
 
-To run:
-
-``` r
-# read in app code
-tmSendKeys('abc','rthSrcExamples("Sorts.R")')
-# run 'setup' in thread 0
-tmSendKeys('abc','setup()',0)
-# run 'doSorts' in all threads 
-tmSendKeys('abc','doSorts()')
-```
-
-To check results:
-
-``` r
-tmSendKeys('abc','rthSGget("m",cols=1:5)')
-```
-
-Sure enough, the rows appear to be in ascending numerical order.
+Running the code and checking the results, we see that
+sure enough, the rows appear to be in ascending numerical order.
 Also, the output from **print** shows that indeed, the operation was
 done in parallel, i.e. different threads handled different rows of
-**m**.
+**m**. (In this small example, one thread has a head start and handles
+most of the rows.)
 
 Overview of the code:
 
