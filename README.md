@@ -286,6 +286,7 @@ well. It can also be done by mouse click: ctrl b :set -g mouse on.
 # split tmux window into 2 windows, one for each thread 
 # to be created; start R and Rthreads in them, 
 # and create the threads
+library(Rthreads)
 tmRthreadsInit(2)  
 # at thread 0, create shared x 
 tmSendKeys('abc','rthMakeSharedVar("x",1,1,initVal=3)',0)
@@ -305,25 +306,6 @@ tmSendKeys('abc','rthSGget("x",1,1)')
 The code for all of the examples here are in **inst/examples** (there
 may be slight differences) or in the package code itself. You can load
 them via the function **rthSrcExamples**.
-
-## Run pattern 
-
-To run the first example below, type "tmux new -s 'abc'" into a terminal
-window, then type the following into your original R window:
-
-``` r
-# start Rthreads, with 2 threads
-library(Rthreads)
-tmRthreadsInit(2)  
-# load example
-tmSendKeys('abc','rthSrcExamples("Sorts.R")')
-# run 'setup' in thread 0
-tmSendKeys('abc','setup()',0)
-# run 'doSorts' in all threads
-tmSendKeys('abc','doSorts()')
-# check results
-tmSendKeys('abc','rthSGget("m",cols=1:5)')  # rows are sorted, yes
-```
 
 ## Example: Sorting many long vectors
 
@@ -372,8 +354,25 @@ doSorts <- function()  # run in all threads, maybe with system.time()
 }
 ```
 
+To run, type "tmux new -s 'abc'" into a terminal window, then type the
+following into your original R window:
+
+``` r
+# start Rthreads, with 2 threads
+library(Rthreads)
+tmRthreadsInit(2)  
+# load example at all threads
+tmSendKeys('abc','rthSrcExamples("Sorts.R")')
+# run 'setup' in thread 0; creates shared variables etc.
+tmSendKeys('abc','setup()',0)
+# run 'doSorts' in all threads
+tmSendKeys('abc','doSorts()')
+# check results
+tmSendKeys('abc','rthSGget("m",cols=1:5)')  # rows are sorted, yes
+```
+
 Running the code and checking the results, we see that
-sure enough, the rows appear to be in ascending numerical order.
+sure enough, each row appears to be in ascending numerical order.
 Also, the output from **print** shows that indeed, the operation was
 done in parallel, i.e. different threads handled different rows of
 **m**. (In this small example, one thread has a head start and handles
@@ -490,14 +489,14 @@ And that restriction on the timing of writing back the imputed values is
 the purpose of this example. In order to enforce that restriction, one
 uses a *barrier*, an important threads concept. When a thread reaches
 that line, it may not proceed further until *all* threads have reached
-the line. As noted in the code comments, we need a situation in which
-one thread changes **dta** while other threads are still making use of
-the original version.
+the line. As noted in the code comments, we need to avoid a situation in
+which one thread changes **dta** while other threads are still making
+use of the original version.
 
 Note that I've kept the code simple, so as to best illustrate the
 parallelization principles involved; no implication is intended that
 this is an effective imputation method, nor for that matter that the
-parallelization optimal. 
+parallelization <i> </i>optimal. 
 
 For instance, note the comment:
 
@@ -522,6 +521,7 @@ Here is the code:
 setup <- function(dta)  # run in thread 0
 {
 
+   # convert factors to numeric dummies
    dta <- regtools::factorsToDummies(dta,omitLast=FALSE,dfOut=FALSE)
    z <- dim(dta)
    nr <- z[1]
@@ -580,6 +580,8 @@ doImputation <- function()
 To run:
 
 ``` r
+library(Rthreads)
+tmRthreadsInit(2)  
 tmSendKeys('abc','rthSrcExamples("MV.R")')
 tmSendKeys('abc','data(NHISlarge)')
 tmSendKeys('abc','setup(nhis.large)',0)
@@ -676,6 +678,8 @@ findMinDists <- function(adjMat,destVertex)
 To run:
 
 ``` r
+library(Rthreads)
+tmRthreadsInit(2)  
 tmSendKeys('abc','rthSrcExamples("MinDists.R")')
 tmSendKeys('abc','adjMat <- rbind(
              c(0,1,1,0,0),
