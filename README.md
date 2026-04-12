@@ -4,6 +4,11 @@
 
 ### Filling an important gap
 
+* If we have a large dataset and/or a very complex algorithm, run time
+  can be unacceptably long. A possible solution is to break the
+  computation into pieces, and have different computational entities
+  work on them in parallel.
+
 * *Threading* is a major mechanism for parallel operations in the world
   of computing.
 
@@ -481,9 +486,9 @@ this column from the others, then replace the NAs by their predicted
 values.
 
 We will do this column by column, with each thread temporarily saving
-its imputed values rather than immediately writing them back
-to the dataset. Only after all threads have computed imputations in the
-do we update the actual dataset. 
+its imputed values rather than immediately writing them back to the
+dataset. Only after all threads have computed imputations in their
+respective columns do we update the actual dataset. 
 
 And that restriction on the timing of writing back the imputed values is
 the purpose of this example. In order to enforce that restriction, one
@@ -506,9 +511,9 @@ For instance, note the comment:
 # (and thus imputed)  value will still be NA
 ```
 
-Thus some NAs may go unimputed. One solution could be to iterate the
-process. Another would be to predict from fewer columns in the case of
-such rows.
+Thus some NAs may go unimputed, and indeed in the example run, many do.
+One solution could be to iterate the process. Another would be to
+predict from fewer columns in the case of such rows.
 
 Here is the code:
 
@@ -521,7 +526,6 @@ Here is the code:
 setup <- function(dta)  # run in thread 0
 {
 
-   # convert factors to numeric dummies
    dta <- regtools::factorsToDummies(dta,omitLast=FALSE,dfOut=FALSE)
    z <- dim(dta)
    nr <- z[1]
@@ -550,9 +554,8 @@ doImputation <- function()
       if (length(NAelements) > 0) {
          lmOut <- lm(dta[,col] ~ dta[,-col])
          imputes <- lmOut$fitted.values[NAelements]
-         # note: if a row in dta[,-col] has more than 1 NA (the
-         # value to be predicted and one predictor), its predicted 
-         # (and thus imputed)  value will still be NA
+         # note: if a row in dta[,-col] has more than 1 NA,
+         # its predicted (and thus imputed)  value will still be NA
          tmp <- 
             list(colNum=col,imputes=imputes,NAelements=NAelements)
       } else tmp <- NULL
@@ -571,8 +574,6 @@ doImputation <- function()
       }
    }
 
-   dta  # return imputed data
-
 }
 
 ```
@@ -583,9 +584,13 @@ To run:
 library(Rthreads)
 tmRthreadsInit(2)  
 tmSendKeys('abc','rthSrcExamples("MV.R")')
-tmSendKeys('abc','data(NHISlarge)')
+tmSendKeys('abc','data(nhis.large)')
 tmSendKeys('abc','setup(nhis.large)',0)
-tmSendKeys('abc','w <- doImputation()')
+tmSendKeys('abc','doImputation()')
+w <- rthSGget('dta')
+tmSendKeys('abc','sum(is.na(w[]))')  # 4115
+tmSendKeys('abc','sum(is.na(nhis.large))')  # 12100
+# lots of NAs imputed, but many remain
 ```
 
 ## Example: Shortest paths in a graph
@@ -722,7 +727,7 @@ other--no barriers, no autoincrement etc.--is often called
 
 * A shared variable **x** is a **bigmemory** object, which is a pointer to
   the corresponding matrix. So to access the matrix, we need to specify
-  row and column numbers, or for the full matrix, [,].
+  row and/or column numbers, or for the full matrix, [,].
 
 * Though the **tmux** wrappers greatly reduce a user's work, e.g. by
   sending the same command to all threads, the threads are still running
@@ -734,7 +739,9 @@ other--no barriers, no autoincrement etc.--is often called
 * Objects created by **bigmemory** are persistent until removed or until
   the R session ends. This can have implications if you do a number of
   runs of an **Rthreads** application. Be sure your application's **setup**
-  function re-initializes **bigmemory** objects as needed.
+  function re-initializes **bigmemory** objects as needed. Or, call
+  **tmQuit** in your original R window, restart **tmux** in the terminal
+  window, etc.
 
 * The **tmux** system can also split windows rather than multiplexing
   them. One window is split into one or more, either horizontally or
