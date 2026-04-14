@@ -35,16 +35,23 @@ library(gtools)
 # predicted values, which one can accommodate with 'predFtnReg' or
 # 'predFtnClassif'
 
+library(gtools)
+
 rthGridSearch <- 
    function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
-      predFtnReg=NULL,predFtnClassif=NULL)
+      predFtnReg=NULL,predFtnClassif=NULL,preRandomize=TRUE)
 {
    # form results matrix, parameter values in the first length(pars)
    # columns and experiment results in the last two
    combs <- do.call(expand.grid,pars)
-   combs$means <- rep(NA,nrow(combs))
-   combs$stdErrs <- rep(NA,nrow(combs))
+   nrc <- nrow(combs)
+   combs$means <- rep(NA,nrc)
+   combs$stdErrs <- rep(NA,nrc)
    combs <- as.matrix(combs)
+   if (preRandomize) {
+      newOrder <- sample(1:nrc,nrc)
+      combs <- combs[newOrder,]
+   }
 
    # form shared version of combs; this eventually will hold the results
    # of the function
@@ -95,7 +102,7 @@ rthGridSearch <-
 
 }
 
-splitTrainTest <- defmacro(data,
+splitTrainTest <- gtools::defmacro(data,
 testSetSize,yCol,expr={ rows <- 1:nrow(data)
      testRows <- sample(rows,testSetSize)
      trainRows <- setdiff(rows,testRows)
