@@ -744,7 +744,7 @@ other--no barriers, no autoincrement etc.--is often called
 
 * Using shared memory to see "big picture," directly write the output.
 
-## Example: Hyperparameter Grid Search
+# Application: Hyperparameter Grid Search
 
 ``` r
 
