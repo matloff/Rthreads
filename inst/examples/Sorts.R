@@ -27,14 +27,15 @@ setup <- function(vecLengths=1000)  # run in thread 0
 doSorts <- function()  # run in all threads, maybe with system.time()
 {
 
-    if (myGlobals$myID != 0) {
+    myID <- rthMyID()
+    if (myID != 0) {
         rthAttachSharedVar("nextRowNum")
         rthAttachSharedVar("m")
     } 
    
    m <- sharedGlobals$m
 
-   rowNum <- myGlobals$myID+1  # my first vector to sort
+   rowNum <- myID+1  # my first vector to sort
 
    while (rowNum <= nrow(m)) {
       # as illustration of parallel operation, see which threads execute
@@ -46,6 +47,6 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       rowNum <- rthAtomicInc('nextRowNum') 
    }
 
-   rthBarrier()  # not really needed
+   rthWaitDone()  # wait until add threads are done
 
 }

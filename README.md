@@ -38,6 +38,10 @@
   tends to be more difficult to write and harder to read, due to it 
   being cluttered with extraneous communication code.
 
+* Shared-memory coding is especially useful when debugging one's code,
+  as it enables one to see the entire "big picture," i.e. everything
+  that is occurring across all computational units.
+
 <!--
 
 * Say we are on a quad-core machine. Here is an overview of the two
@@ -355,7 +359,7 @@ doSorts <- function()  # run in all threads, maybe with system.time()
       rowNum <- rthAtomicInc('nextRowNum') 
    }
 
-   rthBarrier()  
+   rthWaitDone()  
 }
 ```
 
@@ -424,6 +428,12 @@ Overview of the code:
   If one thread has locked the mutex and another thread reaches the
   lock line, it will be blocked until the mutex is unlocked. 
 
+* It would be nice, though usually not crucial, to arrange things so
+  that one a thread finishes all its work, it waits for all the others
+  to be one too. We do that here with the function **rthWaitDone**,
+  whose internal code calls **rthAtomicInc**. We could also have used a
+  *barrier* instead, to be presented below.
+
 * As noted earlier, in threads programming, the threads assign work to
   themselves, instead of manager code doing so. Here this is done via
   the shared variable **nextRowNum**.
@@ -433,6 +443,12 @@ Overview of the code:
   could work on rows 1 through 5, with the second handling rows 6 to 10.
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
+
+### Parallel constructs used
+
+* Using shared memory to directly write the output.
+
+* Atomic operations.
 
 ### Comparison to the 'parallel' Package/Message-Passing Paradigm
 
@@ -577,6 +593,12 @@ doImputation <- function()
 }
 
 ```
+
+### Parallel constructs used
+
+* Using shared memory to directly write the output.
+
+* Use of barriers.
 
 To run:
 
