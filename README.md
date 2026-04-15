@@ -746,92 +746,12 @@ other--no barriers, no autoincrement etc.--is often called
 
 # Application: Hyperparameter Grid Search
 
-``` r
-
-
-library(gtools)
-
-rthGridSearch <- 
-   function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
-      predFtnReg=NULL,predFtnClassif=NULL)
-{
-   # form results matrix, parameter values in the first length(pars)
-   # columns and experiment results in the last two
-   combs <- do.call(expand.grid,pars)
-   combs$means <- rep(NA,nrow(combs))
-   combs$stdErrs <- rep(NA,nrow(combs))
-   combs <- as.matrix(combs)
-
-   # form shared version of combs; this eventually will hold the results
-   # of the function
-   myID <- rthMyID()  
-   if (myID == 0) {
-     rthMakeSharedVar('Combs',nrow(combs),ncol(combs),combs)
-   }
-   rthBarrier()
-   if (myID > 0) rthAttachSharedVar('Combs')
-
-   nthreads <- sharedGlobals$nThreads[1,1]
-   myRows <- parallel::splitIndices(nrow(combs),nthreads)[[myID +1]]
-
-   losses <- vector(length=nXval)
-   parNames <- names(pars)
-   nPars <- length(pars)
-   yCol <- which(names(dta) == yName)
-   if (!is.null(predFtnReg)) predict <- predFtnReg
-   if (!is.null(predFtnClassif)) predict <- predFtnClassif
-   for (myrow in myRows) {
-      # form full call
-      theCall <- basicCall
-      for (i in 1:nPars)
-         theCall <- 
-            paste0(theCall,',',parNames[i],'=',combs[myrow,i]) 
-      theCall <- paste0(theCall,')')
-      # do the computation for this comb
-      for (i in 1:nXval) {
-         splitTrainTest(dta,nTest,yCol)  # produces trainData, testData, etc.
-         outObj <- evalr(theCall)
-         preds <- predict(outObj,testX)
-         losses[i] <- 
-            if (classif) mean(preds != testY)
-            else mean(abs(preds - testY))
-      }
-      # record outcome
-      sharedGlobals[['Combs']][myrow,nPars+1] <- mean(losses)
-      sharedGlobals[['Combs']][myrow,nPars+2] <- 
-         sd(losses) / sqrt(length(losses))
-
-   }
-
-   rthBarrier()
-   # return(as.data.frame(as.matrix(Combs)))
-   CombsDF <- as.data.frame(as.matrix(sharedGlobals[['Combs']][,]))
-   names(CombsDF) <- c(names(pars),'acc','accSE')
-   CombsDF
-
-}
-
-splitTrainTest <- defmacro(data,
-testSetSize,yCol,expr={ rows <- 1:nrow(data)
-     testRows <- sample(rows,testSetSize)
-     trainRows <- setdiff(rows,testRows)
-     testData <- data[testRows,]
-     testY <- data[testRows,yCol]
-     testX <- data[testRows,-yCol]
-     trainData <- data[trainRows,]
-     trainY <- data[trainRows,yCol]
-     trainX <- data[trainRows,-yCol]
-   }
-)
-
-```
-
 To run:
 
 ``` r
 library(Rthreads)
 tmRthreadsInit(2)  
-library(qeML)
+E`kkulibrary(qeML)
 data(svcensus)
 tmSendKeys('abc','rthSrcExamples("GridSearch.R")')
 tmSendKeys('abc','data(svcensus); library(randomForest)')
@@ -842,14 +762,38 @@ tmSendKeys('abc', 'rthGridSearch(
    pars=list(
       nTree=c(10,100),
       nodesize=c(5,25,75)),
-   nXval=5,nTest=1000)'
+   nXval=5,nTest=1000,preRandomize=TRUE)'
 )
+
+```
+
+The code is again "embarrassingly parallel," to we will not discuss it
+is in detail, but one section of the code is key:
+
+``` r
+rthGridSearch <- 
+   function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
+      predFtnReg=NULL,predFtnClassif=NULL,preRandomize=FALSE)
+   # form results matrix, parameter values in the first length(pars)
+   # columns and experiment results in the last two
+   combs <- do.call(expand.grid,pars)
+    nrc <- nrow(combs)
+    combs$means <- rep(NA, nrc)
+    combs$stdErrs <- rep(NA, nrc)
+    combs <- as.matrix(combs)
+    if (preRandomize) {
+        newOrder <- sample(1:nrc, nrc)
+        combs <- combs[newOrder, ]
+    }
+    ...
 
 ```
 
 ### Parallel constructs used
 
 * Using shared memory to directly write the output.
+
+* Load balancing.
 
 * Barriers.
 
