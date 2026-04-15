@@ -438,9 +438,10 @@ Overview of the code:
   themselves, instead of manager code doing so. Here this is done via
   the shared variable **nextRowNum**.
 
-  Another possibility would be to have threads *pre*-assign work to
+* Another possibility would be to have threads *pre*-assign work to
   themselves. With 10 rows and 2 threads, for instance, the first thread
   could work on rows 1 through 5, with the second handling rows 6 to 10.
+  This is done in some of the code below by calling **parallel::splitIndices**.
   But this may not work well in settings with *load imbalance*, where
   some rows require more work than others (as with our test case here).
 
@@ -746,14 +747,19 @@ other--no barriers, no autoincrement etc.--is often called
 
 # Application: Hyperparameter Grid Search
 
-To run:
+The earlier examples were somewhat artificial, meant mainly to
+illustrate the principles. There code here is ready to use in practice.
+And it is quite general, usable with almost any prediction package,
+unike the grid search algorithms of other major packages. It runs
+directly on S3 objects, and wrappers can easily be written for the
+others.
+
+### To run
 
 ``` r
 library(Rthreads)
 tmRthreadsInit(2)  
-E`kkulibrary(qeML)
-data(svcensus)
-tmSendKeys('abc','rthSrcExamples("GridSearch.R")')
+library(qeML)
 tmSendKeys('abc','data(svcensus); library(randomForest)')
 tmSendKeys('abc', 'rthGridSearch(
    # note: no ) in this next line
@@ -767,8 +773,59 @@ tmSendKeys('abc', 'rthGridSearch(
 
 ```
 
+Here we performing random forest analysys using 
+**randomForest::randomForest**, predicting wage income in the
+census data.
+
+The argument **basicCall** specifies the form of the call in which
+default values are used for the hyperparameters. The argument **pars**
+then sets ranges for the parameter values; e.g. we will try 10 trees and
+100 trees. We run **nodesize** replications for each combination of
+**pars** values, assessing accuracy on holdout sets of size 1000.  
+
+
+### Load balancing
+
 The code is again "embarrassingly parallel," to we will not discuss it
-is in detail, but one section of the code is key:
+is in detail, but a key aspect of the code is load balancing. This is
+controlled by the argument **preRandomize**. (Actually, most packages
+implicitly run in a manner like that of **preRandomize=TRUE**, but we've
+made it an option.)
+
+Output with **preRandomize=FALSE**:
+
+``` r
+  nTree nodesize      acc    accSE
+1    10        5 26539.18 331.8150
+2   100        5 26913.68 412.9924
+3    10       25 25882.50 398.8077
+4   100       25 25075.62 344.1388
+5    10       75 25578.15 203.7942
+6   100       75 25524.02 276.3698
+```
+
+The ##acc## column is accuracy, Mean Absolute Prediction Error for
+regression problems, Overall Misclassification Error for the
+classification case. (Some users may wish to modify this.)
+
+Now compare that with **preRandomize=TRUE**:
+
+``` r
+  nTree nodesize      acc    accSE
+1    10       75 25913.62 469.2936
+2    10       25 25907.13 440.1158
+3   100       25 25731.88 516.4376
+4   100        5 25634.34 347.3376
+5    10        5 26287.93 795.0576
+6   100       75 25823.26 350.4736
+```
+
+Runs with larger values of ##ntree## generate more trees, thus have
+lomger execution times; the same is true for **nodesize**. Since we use
+**parallel::splitIndices** to assign the work to the threads, the
+threads with earlier IDs may finish well before those with later IDs,
+resulting in wasted processing power. Randomizing the order fixes this
+problem (though it may hide interesting trends in the hyperparameters):
 
 ``` r
 rthGridSearch <- 
@@ -836,6 +893,11 @@ rthGridSearch <-
 With Examples in R, C++ and CUDA*](https://www.google.com/books/edition/Parallel_Computing_for_Data_Science/SsbECQAAQBAJ?hl=en&gbpv=0)
 
 * [Tutorial on accessing OpenMP via **Rcpp**](https://mfasiolo.github.io/sc2-2019/rcpp_advanced_iii/1_openmp/)
+
+* [The Art of Machine Learning
+A Hands-On Guide to Machine Learning with R,
+by Norman Matloff,
+November 2023,](https://nostarch.com/art-machine-learning)
 
 # Legal
 
