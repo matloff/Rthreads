@@ -1,6 +1,4 @@
 
-library(gtools)
-
 # threaded parallel grid search, enabling the user to pursue optimizing
 # values of tuning parameters/hyperparameters
 
@@ -39,7 +37,7 @@ library(gtools)
 
 rthGridSearch <- 
    function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
-      predFtnReg=NULL,predFtnClassif=NULL,preRandomize=TRUE)
+      predFtnReg=NULL,predFtnClassif=NULL)
 {
    # form results matrix, parameter values in the first length(pars)
    # columns and experiment results in the last two
@@ -48,10 +46,8 @@ rthGridSearch <-
    combs$means <- rep(NA,nrc)
    combs$stdErrs <- rep(NA,nrc)
    combs <- as.matrix(combs)
-   if (preRandomize) {
-      newOrder <- sample(1:nrc,nrc)
-      combs <- combs[newOrder,]
-   }
+   newOrder <- sample(1:nrc,nrc)
+   combs <- combs[newOrder,]
 
    # form shared version of combs; this eventually will hold the results
    # of the function
@@ -69,8 +65,8 @@ rthGridSearch <-
    parNames <- names(pars)
    nPars <- length(pars)
    yCol <- which(names(dta) == yName)
-   if (!is.null(predFtnReg)) predict <- predFtnReg
-   if (!is.null(predFtnClassif)) predict <- predFtnClassif
+   # if (!is.null(predFtnReg)) predict <- predFtnReg
+   # if (!is.null(predFtnClassif)) predict <- predFtnClassif
    for (myrow in myRows) {
       # form full call
       theCall <- basicCall
@@ -83,6 +79,10 @@ rthGridSearch <-
          splitTrainTest(dta,nTest,yCol)  # produces trainData, testData, etc.
          outObj <- evalr(theCall)
          preds <- predict(outObj,testX)
+         if(!is.null(predFtnClassif)) 
+            preds <- predFtnClassif(preds)
+         if(!is.null(predFtnReg)) 
+            preds <- predFtnReg(preds)
          losses[i] <- 
             if (classif) mean(preds != testY)
             else mean(abs(preds - testY))
@@ -98,6 +98,7 @@ rthGridSearch <-
    # return(as.data.frame(as.matrix(Combs)))
    CombsDF <- as.data.frame(as.matrix(sharedGlobals[['Combs']][,]))
    names(CombsDF) <- c(names(pars),'acc','accSE')
+   CombsDF <- CombsDF[order(CombsDF$acc),]
    CombsDF
 
 }
