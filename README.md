@@ -748,7 +748,7 @@ other--no barriers, no autoincrement etc.--is often called
 # Application: Hyperparameter Grid Search
 
 The earlier examples were somewhat artificial, meant mainly to
-illustrate the principles. There code here is ready to use in practice.
+illustrate the principles. The code here is ready to use in practice.
 And it is quite general, usable with almost any prediction package,
 unike the grid search algorithms of other major packages. It runs
 directly on S3 objects, and wrappers can easily be written for the
@@ -768,9 +768,14 @@ tmSendKeys('abc', 'rthGridSearch(
    pars=list(
       nTree=c(10,100),
       nodesize=c(5,25,75)),
-   nXval=5,nTest=1000,preRandomize=TRUE)'
-)
-
+   nXval=5,nTest=1000)')
+#   nTree nodesize      acc    accSE
+# 3    10       25 25054.66 454.5994
+# 2   100       75 25466.34 190.7726
+# 4    10        5 25589.14 274.4656
+# 1   100       25 25649.66 584.2681
+# 6   100        5 25804.41 698.3583
+# 5    10       75 25933.92 448.2114
 ```
 
 Here we performing random forest analysys using 
@@ -780,71 +785,82 @@ census data.
 The argument **basicCall** specifies the form of the call in which
 default values are used for the hyperparameters. The argument **pars**
 then sets ranges for the parameter values; e.g. we will try 10 trees and
-100 trees. We run **nodesize** replications for each combination of
+100 trees. We run **nXval** replications for each combination of
 **pars** values, assessing accuracy on holdout sets of size 1000.  
+
+The **acc** column in the output is accuracy, Mean Absolute Prediction
+Error for regression problems, Overall Misclassification Error for the
+classification case. (Some users may wish to modify this.)
+
+Here is an example of classification applications.
+
+``` r
+library(Rthreads)
+tmRthreadsInit(2)
+tmSendKeys('abc','library(Rthreads)')
+tmSendKeys('abc','library(ranger)')
+tmSendKeys('abc','data("nhis.large")')
+tmSendKeys('abc','nhis.large$sex <- as.factor(nhis.large$sex)')
+
+# ranger's return value from predict() is not the predictions themselves
+# but an S3 objecct containing them
+tmSendKeys('abc','predRanger <- function(preds) preds$predictions ')
+
+tmSendKeys('abc', 'z <- rthGridSearch(
+   basicCall="ranger(sex ~ .,data=trainData",
+   dta=nhis.large,yName="sex",classif=TRUE,
+   pars=list(
+      num.trees=c(10,25,100),
+      min.node.size=c(5,25,75),
+      mtry=c(2,6,10)),
+   nXval=5,nTest=1000,
+   predFtnClassif=predRanger)'
+)
+
+z
+#    num.trees min.node.size mtry    acc       accSE
+# 27        25             5   10 0.3094 0.009495262
+# 9        100            25   10 0.3104 0.004178516
+# 4         10             5   10 0.3160 0.004827007
+# 18        10            25    2 0.3224 0.009162969
+# 7         25            75   10 0.3272 0.007385120
+# 5        100            75   10 0.3320 0.006024948
+# 12        10            25   10 0.3322 0.002154066
+# 20        10             5    2 0.3336 0.010906879
+# 13        10            75   10 0.3380 0.008706320
+# 24        10            25    6 0.3452 0.006506919
+# 25        25             5    2 0.3460 0.005770615
+# 22        25            25   10 0.3470 0.003807887
+# 6        100            75    6 0.3486 0.008749857
+# 1        100            25    6 0.3502 0.004641121
+# 23        25            25    6 0.3506 0.003009983
+# 11        25             5    6 0.3534 0.006376519
+# 2         10             5    6 0.3666 0.000400000
+# 16        10            75    2 0.3708 0.004993996
+# 14        10            75    6 0.3728 0.003569314
+# 8        100             5    2 0.4000 0.006403124
+# 17       100             5   10 0.4128 0.009002222
+# 3        100            75    2 0.4138 0.007651144
+# 21        25            25    2 0.4146 0.005573150
+# 10       100            25    2 0.4162 0.012055704
+# 19        25            75    6 0.4198 0.003484250
+# 15       100             5    6 0.4214 0.007117584
+# 26        25            75    2 0.4264 0.010509995
+```
 
 
 ### Load balancing
 
 The code is again "embarrassingly parallel," to we will not discuss it
-is in detail, but a key aspect of the code is load balancing. This is
-controlled by the argument **preRandomize**. (Actually, most packages
-implicitly run in a manner like that of **preRandomize=TRUE**, but we've
-made it an option.)
+is in detail, but a key aspect of the code is load balancing. 
 
-Output with **preRandomize=FALSE**:
-
-``` r
-  nTree nodesize      acc    accSE
-1    10        5 26539.18 331.8150
-2   100        5 26913.68 412.9924
-3    10       25 25882.50 398.8077
-4   100       25 25075.62 344.1388
-5    10       75 25578.15 203.7942
-6   100       75 25524.02 276.3698
-```
-
-The ##acc## column is accuracy, Mean Absolute Prediction Error for
-regression problems, Overall Misclassification Error for the
-classification case. (Some users may wish to modify this.)
-
-Now compare that with **preRandomize=TRUE**:
-
-``` r
-  nTree nodesize      acc    accSE
-1    10       75 25913.62 469.2936
-2    10       25 25907.13 440.1158
-3   100       25 25731.88 516.4376
-4   100        5 25634.34 347.3376
-5    10        5 26287.93 795.0576
-6   100       75 25823.26 350.4736
-```
-
-Runs with larger values of ##ntree## generate more trees, thus have
-lomger execution times; the same is true for **nodesize**. Since we use
-**parallel::splitIndices** to assign the work to the threads, the
-threads with earlier IDs may finish well before those with later IDs,
-resulting in wasted processing power. Randomizing the order fixes this
-problem (though it may hide interesting trends in the hyperparameters):
-
-``` r
-rthGridSearch <- 
-   function(basicCall,dta,yName,pars,nXval,nTest,classif=FALSE, 
-      predFtnReg=NULL,predFtnClassif=NULL,preRandomize=FALSE)
-   # form results matrix, parameter values in the first length(pars)
-   # columns and experiment results in the last two
-   combs <- do.call(expand.grid,pars)
-    nrc <- nrow(combs)
-    combs$means <- rep(NA, nrc)
-    combs$stdErrs <- rep(NA, nrc)
-    combs <- as.matrix(combs)
-    if (preRandomize) {
-        newOrder <- sample(1:nrc, nrc)
-        combs <- combs[newOrder, ]
-    }
-    ...
-
-```
+In both examples above, runs with larger values of **ntree*# generate
+more trees, thus have lomger execution times; the same is true for
+**nodesize**. Since we use **parallel::splitIndices** to assign the work
+to the threads, the threads with earlier IDs may finish well before
+those with later IDs, resulting in wasted processing power. Randomizing
+the order fixes this problem (though it may hide interesting trends in
+the hyperparameters):
 
 ### Parallel constructs used
 
