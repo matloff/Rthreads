@@ -49,6 +49,10 @@ rthGridSearch <-
    newOrder <- sample(1:nrc,nrc)
    combs <- combs[newOrder,]
 
+   # rm ')' from basicCall
+   nchr <- nchar(basicCall)
+   basicCall <- substr(basicCall,1,nchr-1) 
+
    # form shared version of combs; this eventually will hold the results
    # of the function
    myID <- rthMyID()  
@@ -65,8 +69,6 @@ rthGridSearch <-
    parNames <- names(pars)
    nPars <- length(pars)
    yCol <- which(names(dta) == yName)
-   # if (!is.null(predFtnReg)) predict <- predFtnReg
-   # if (!is.null(predFtnClassif)) predict <- predFtnClassif
    for (myrow in myRows) {
       # form full call
       theCall <- basicCall
