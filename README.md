@@ -791,7 +791,7 @@ The **acc** column in the output is accuracy, Mean Absolute Prediction
 Error for regression problems, Overall Misclassification Error for the
 classification case. (Some users may wish to modify this.)
 
-Here is an example of classification applications.
+Here is an example of binary classification applications.
 
 ``` r
 library(Rthreads)
@@ -845,6 +845,45 @@ z
 # 19        25            75    6 0.4198 0.003484250
 # 15       100             5    6 0.4214 0.007117584
 # 26        25            75    2 0.4264 0.010509995
+```
+
+And one for multiclass Y:
+
+``` r
+library(Rthreads)
+tmRthreadsInit(4)  # have a lot of work to do, so use more cores
+tmSendKeys('abc','library(qeML)')
+tmSendKeys('abc','library(Rthreads)')
+tmSendKeys('abc','data(svcensus)')
+tmSendKeys('abc','predClassDeepnet <- function(preds) preds$predClasses')
+
+tmSendKeys('abc','yName <- "educ"')
+tmSendKeys('abc', 'z <- rthGridSearch(
+   basicCall="qeDeepnet(data=trainData,yName=yName)",
+   dta=svcensus,yName="educ",classif=TRUE,
+   pars=list(
+      hidden=c(16,32,64,128),
+      batchsize=c(25,50,75,100)),
+   nXval=5,nTest=1000,predFtnClassif=predClassDeepnet)'
+)
+z
+#    hidden batchsize    acc       accSE
+# 7     128        75 0.2402 0.008604650
+# 6      64        50 0.2454 0.009141116
+# 9      64        75 0.2464 0.003529873
+# 4     128        50 0.2502 0.003992493
+# 11     16        50 0.2518 0.003056141
+# 2      64        25 0.2522 0.008720092
+# 1      64       100 0.2524 0.004718050
+# 12     16       100 0.2528 0.004532108
+# 15     32        25 0.2534 0.003108054
+# 14     16        75 0.2554 0.004589118
+# 16    128       100 0.2572 0.002034699
+# 13     32        75 0.2580 0.006131884
+# 5     128        25 0.2590 0.008642916
+# 10     16        25 0.2604 0.005635601
+# 8      32       100 0.2628 0.003184337
+# 3      32        50 0.2638 0.002222611
 ```
 
 
