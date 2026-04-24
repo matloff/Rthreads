@@ -762,8 +762,7 @@ tmRthreadsInit(2)
 library(qeML)
 tmSendKeys('abc','data(svcensus); library(randomForest)')
 tmSendKeys('abc', 'rthGridSearch(
-   # note: no ) in this next line
-   basicCall="randomForest(wageinc ~ .,data=trainData",
+   basicCall="randomForest(wageinc ~ .,data=trainData)",
    dta=svcensus,yName="wageinc",
    pars=list(
       nTree=c(10,100),
@@ -807,7 +806,7 @@ tmSendKeys('abc','nhis.large$sex <- as.factor(nhis.large$sex)')
 tmSendKeys('abc','predRanger <- function(preds) preds$predictions ')
 
 tmSendKeys('abc', 'z <- rthGridSearch(
-   basicCall="ranger(sex ~ .,data=trainData",
+   basicCall="ranger(sex ~ .,data=trainData)",
    dta=nhis.large,yName="sex",classif=TRUE,
    pars=list(
       num.trees=c(10,25,100),
